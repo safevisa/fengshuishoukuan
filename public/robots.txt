@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://jinshiying.com/sitemap.xml
+
+# Security
+Disallow: /admin/
+Disallow: /api/
+Disallow: /.well-known/
