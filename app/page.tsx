@@ -1,11 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Search, ShoppingCart, User, Phone, Mail, Shield, Truck, FileText } from "lucide-react"
+import { Search, ShoppingCart, User, Phone, Mail, Shield, Truck, FileText, BarChart3, LogOut } from "lucide-react"
 import Link from "next/link"
 
 // Mock product data for feng shui items
@@ -75,6 +75,36 @@ export default function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState("全部")
   const [searchTerm, setSearchTerm] = useState("")
   const [cartCount, setCartCount] = useState(3) // Mock cart count
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [user, setUser] = useState<any>(null)
+
+  // 检查登录状态
+  useEffect(() => {
+    const checkLoginStatus = () => {
+      const currentUserEmail = localStorage.getItem("current_user_email")
+      if (currentUserEmail) {
+        setIsLoggedIn(true)
+        // 这里可以从localStorage获取用户信息
+        const userData = localStorage.getItem("current_user")
+        if (userData) {
+          setUser(JSON.parse(userData))
+        }
+      }
+    }
+    
+    checkLoginStatus()
+    // 监听storage变化
+    window.addEventListener('storage', checkLoginStatus)
+    return () => window.removeEventListener('storage', checkLoginStatus)
+  }, [])
+
+  const handleLogout = () => {
+    localStorage.removeItem("current_user_email")
+    localStorage.removeItem("current_user")
+    setIsLoggedIn(false)
+    setUser(null)
+    window.location.reload()
+  }
 
   const filteredProducts = products.filter((product) => {
     const matchesCategory = selectedCategory === "全部" || product.category === selectedCategory
@@ -99,34 +129,60 @@ export default function HomePage() {
             </div>
 
             <div className="flex items-center space-x-3">
-              <Link href="/auth/register">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-amber-300 text-amber-700 hover:bg-amber-50 bg-transparent"
-                >
-                  註冊
-                </Button>
-              </Link>
-              <Link href="/auth/login">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-amber-300 text-amber-700 hover:bg-amber-50 bg-transparent"
-                >
-                  登入
-                </Button>
-              </Link>
-              <Link href="/profile">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-amber-300 text-amber-700 hover:bg-amber-50 bg-transparent"
-                >
-                  <User className="h-4 w-4 mr-2" />
-                  會員中心
-                </Button>
-              </Link>
+              {!isLoggedIn ? (
+                <>
+                  <Link href="/auth/register">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-amber-300 text-amber-700 hover:bg-amber-50 bg-transparent"
+                    >
+                      註冊
+                    </Button>
+                  </Link>
+                  <Link href="/auth/login">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-amber-300 text-amber-700 hover:bg-amber-50 bg-transparent"
+                    >
+                      登入
+                    </Button>
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link href="/profile">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-amber-300 text-amber-700 hover:bg-amber-50 bg-transparent"
+                    >
+                      <User className="h-4 w-4 mr-2" />
+                      會員中心
+                    </Button>
+                  </Link>
+                  <Link href="/dashboard">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-amber-300 text-amber-700 hover:bg-amber-50 bg-transparent"
+                    >
+                      <BarChart3 className="h-4 w-4 mr-2" />
+                      工作台
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-amber-300 text-amber-700 hover:bg-amber-50 bg-transparent"
+                    onClick={handleLogout}
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    登出
+                  </Button>
+                </>
+              )}
               <Link href="/cart">
                 <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white relative">
                   <ShoppingCart className="h-4 w-4 mr-2" />
