@@ -1,22 +1,24 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import UserGuard from "@/components/user-guard"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Phone, Mail, CreditCard, Plus, Edit, Trash2, ArrowLeft, Save, Shield, Package } from "lucide-react"
 import Link from "next/link"
 
-// Mock user data
-const mockUser = {
-  name: "王小明",
-  email: "wang@example.com",
-  phone: "+886 912345678",
-  address: "台北市信義區信義路五段7號",
-  birthDate: "1990-05-15",
+// 默认用户数据
+const defaultUser = {
+  name: "",
+  email: "",
+  phone: "",
+  address: "",
+  birthDate: "",
   gender: "男",
 }
 
@@ -43,7 +45,7 @@ const mockCards = [
 ]
 
 export default function ProfilePage() {
-  const [user, setUser] = useState(mockUser)
+  const [user, setUser] = useState(defaultUser)
   const [cards, setCards] = useState(mockCards)
   const [isEditing, setIsEditing] = useState(false)
   const [showAddCard, setShowAddCard] = useState(false)
@@ -55,10 +57,45 @@ export default function ProfilePage() {
     holderName: "",
   })
 
+  // 从localStorage加载用户数据
+  useEffect(() => {
+    const loadUserData = () => {
+      const currentUser = localStorage.getItem("current_user")
+      if (currentUser) {
+        try {
+          const userData = JSON.parse(currentUser)
+          setUser({
+            name: userData.name || "",
+            email: userData.email || "",
+            phone: userData.phone || "",
+            address: userData.address || "",
+            birthDate: userData.birthDate || "",
+            gender: userData.gender || "男",
+          })
+        } catch (error) {
+          console.error("Failed to parse user data:", error)
+        }
+      }
+    }
+
+    loadUserData()
+  }, [])
+
   const handleSaveProfile = () => {
+    // 保存到localStorage
+    const currentUser = localStorage.getItem("current_user")
+    if (currentUser) {
+      try {
+        const userData = JSON.parse(currentUser)
+        const updatedUser = { ...userData, ...user }
+        localStorage.setItem("current_user", JSON.stringify(updatedUser))
+        alert("個人資料已更新")
+      } catch (error) {
+        console.error("Failed to save user data:", error)
+        alert("保存失敗，請重試")
+      }
+    }
     setIsEditing(false)
-    // In a real app, this would save to backend
-    alert("個人資料已更新")
   }
 
   const handleAddCard = () => {
@@ -93,7 +130,8 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-amber-50 to-orange-50">
+    <UserGuard>
+      <div className="min-h-screen bg-gradient-to-b from-amber-50 to-orange-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-amber-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -223,6 +261,26 @@ export default function ProfilePage() {
                       disabled={!isEditing}
                       className="border-amber-300 focus:border-amber-500 disabled:bg-amber-50"
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="gender" className="text-amber-700">
+                      性別
+                    </Label>
+                    <Select
+                      value={user.gender}
+                      onValueChange={(value) => setUser({ ...user, gender: value })}
+                      disabled={!isEditing}
+                    >
+                      <SelectTrigger className="border-amber-300 focus:border-amber-500 disabled:bg-amber-50">
+                        <SelectValue placeholder="選擇性別" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="男">男</SelectItem>
+                        <SelectItem value="女">女</SelectItem>
+                        <SelectItem value="其他">其他</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
@@ -431,5 +489,6 @@ export default function ProfilePage() {
         </Tabs>
       </div>
     </div>
+    </UserGuard>
   )
 }

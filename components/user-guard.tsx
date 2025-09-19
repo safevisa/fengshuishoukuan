@@ -16,16 +16,29 @@ export default function UserGuard({ children }: UserGuardProps) {
 
   useEffect(() => {
     // 检查用户会话
-    const currentUserEmail = localStorage.getItem("current_user_email")
-    
-    if (currentUserEmail) {
-      setIsLoggedIn(true)
-    } else {
-      router.push("/auth/login")
+    const checkAuth = () => {
+      const currentUserEmail = localStorage.getItem("current_user_email")
+      const currentUser = localStorage.getItem("current_user")
+      
+      if (currentUserEmail && currentUser) {
+        setIsLoggedIn(true)
+      } else {
+        // 清除无效的会话数据
+        localStorage.removeItem("current_user_email")
+        localStorage.removeItem("current_user")
+        router.push("/auth/login")
+      }
     }
 
-    setIsLoading(false)
+    // 延迟检查，确保localStorage已经设置
+    const timer = setTimeout(checkAuth, 100)
+    
+    return () => clearTimeout(timer)
   }, [router])
+
+  useEffect(() => {
+    setIsLoading(false)
+  }, [])
 
   if (isLoading) {
     return (
