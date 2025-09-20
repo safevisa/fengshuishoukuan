@@ -5,15 +5,18 @@ services:
   app:
     build: .
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://postgres:password@db:5432/fengshui
       - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=${JWT_SECRET}
-      - JKOPAY_MERCHANT_ID=${JKOPAY_MERCHANT_ID}
-      - JKOPAY_API_KEY=${JKOPAY_API_KEY}
-      - JKOPAY_SECRET_KEY=${JKOPAY_SECRET_KEY}
+      - JWT_SECRET=test-jwt-secret-key-for-development
+      - JKOPAY_API_URL=https://gateway.suntone.com/payment/api/gotoPayment
+      - JKOPAY_MERCHANT_ID=1888
+      - JKOPAY_TERMINAL_ID=888506
+      - JKOPAY_SECRET_KEY=fe5b2c5ea084426bb1f6269acbac902f
+      - JKOPAY_RETURN_URL=http://localhost:3001/payment/return
+      - JKOPAY_NOTIFY_URL=http://localhost:3001/api/payment/notify
     depends_on:
       - db
       - redis
@@ -32,30 +35,19 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
-      - "5432:5432"
+      - "5433:5432"
     restart: unless-stopped
 
   # Redis缓存
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "6380:6379"
     volumes:
       - redis_data:/data
     restart: unless-stopped
 
-  # Nginx反向代理
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-      - ./ssl:/etc/nginx/ssl
-    depends_on:
-      - app
-    restart: unless-stopped
+  # 移除Nginx，直接使用Next.js服务
 
 volumes:
   postgres_data:

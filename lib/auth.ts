@@ -1,5 +1,4 @@
-// Simple in-memory user storage for demo purposes
-// In a real app, this would be handled by a backend API
+import { dataStorage } from './storage'
 
 interface User {
   id: string
@@ -7,21 +6,10 @@ interface User {
   email: string
   phone: string
   password: string
+  role: 'admin' | 'user'
+  userType: 'registered' | 'admin_created' // 用户类型：注册用户 vs 管理员创建的用户
   createdAt: Date
 }
-
-// In-memory storage (will reset on page refresh in development)
-let users: User[] = [
-  // Default admin user
-  {
-    id: '1',
-    name: 'Admin User',
-    email: 'admin@example.com',
-    phone: '+852 12345678',
-    password: '123456',
-    createdAt: new Date()
-  }
-]
 
 export const authService = {
   // Register a new user
@@ -32,7 +20,7 @@ export const authService = {
     password: string
   }): Promise<{ success: boolean; message: string }> => {
     // Check if user already exists
-    const existingUser = users.find(user => user.email === userData.email)
+    const existingUser = dataStorage.getUserByEmail(userData.email)
     if (existingUser) {
       return { success: false, message: '此電子郵件已被註冊' }
     }
@@ -41,32 +29,19 @@ export const authService = {
     const newUser: User = {
       id: Date.now().toString(),
       ...userData,
+      role: 'user', // 默认角色为普通用户
+      userType: 'registered', // 注册用户类型
       createdAt: new Date()
     }
 
-    users.push(newUser)
-    
-    // Store in localStorage for persistence across page refreshes
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('fengshui_users', JSON.stringify(users))
-    }
+    dataStorage.addUser(newUser)
 
     return { success: true, message: '註冊成功！歡迎加入京世盈風水！' }
   },
 
   // Login user
   login: async (email: string, password: string): Promise<{ success: boolean; message: string; user?: Omit<User, 'password'> }> => {
-    // Load users from localStorage if available
-    if (typeof window !== 'undefined') {
-      const storedUsers = localStorage.getItem('fengshui_users')
-      if (storedUsers) {
-        users = JSON.parse(storedUsers).map((user: any) => ({
-          ...user,
-          createdAt: new Date(user.createdAt)
-        }))
-      }
-    }
-
+    const users = dataStorage.getAllUsers()
     const user = users.find(u => u.email === email && u.password === password)
     
     if (!user) {
@@ -81,6 +56,7 @@ export const authService = {
         email: user.email,
         phone: user.phone,
         role: user.role,
+        userType: user.userType,
         createdAt: user.createdAt
       }))
       localStorage.setItem('current_user_email', user.email)
@@ -94,6 +70,8 @@ export const authService = {
         name: user.name,
         email: user.email,
         phone: user.phone,
+        role: user.role,
+        userType: user.userType,
         createdAt: user.createdAt
       }
     }
@@ -113,6 +91,52 @@ export const authService = {
       localStorage.removeItem('current_user')
       localStorage.removeItem('current_user_email')
     }
+  },
+
+  // 管理员创建用户（具有工作台权限）
+  createUserByAdmin: async (userData: {
+    name: string
+    email: string
+    phone: string
+    password: string
+    role: 'admin' | 'user'
+  }): Promise<{ success: boolean; message: string }> => {
+    // 检查用户是否已存在
+    const existingUser = dataStorage.getUserByEmail(userData.email)
+    if (existingUser) {
+      return { success: false, message: '此電子郵件已被使用' }
+    }
+
+    // 创建新用户（管理员创建类型）
+    const newUser: User = {
+      id: Date.now().toString(),
+      ...userData,
+      userType: 'admin_created', // 管理员创建的用户类型
+      createdAt: new Date()
+    }
+
+    dataStorage.addUser(newUser)
+
+    return { success: true, message: '用戶創建成功！該用戶具有工作台訪問權限。' }
+  },
+
+  // 获取所有用户（管理员用）
+  getAllUsers: (): Omit<User, 'password'>[] => {
+    const users = dataStorage.getAllUsers()
+    return users.map(user => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      userType: user.userType,
+      createdAt: user.createdAt
+    }))
+  },
+
+  // 刷新用户数据
+  refreshUsers: (): void => {
+    dataStorage.refresh()
   }
 }
 

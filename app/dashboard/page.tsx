@@ -27,6 +27,7 @@ import {
 } from "lucide-react"
 import { PaymentLink, Order, Withdrawal, User } from "@/lib/types"
 import { db } from "@/lib/database"
+import { jkopayService } from "@/lib/jkopay-api"
 import { paymentService } from "@/lib/payment"
 
 export default function UserDashboard() {
@@ -40,7 +41,7 @@ export default function UserDashboard() {
     title: "",
     description: "",
     amount: 0,
-    currency: "CNY",
+    currency: "TWD", // 固定为台币
     expiresAt: "",
     maxUses: ""
   })
@@ -64,28 +65,26 @@ export default function UserDashboard() {
       if (currentUserEmail && currentUserData) {
         try {
           const userData = JSON.parse(currentUserData)
-          // 从数据库获取完整的用户信息
-          const dbUser = db.getUserByEmail(userData.email)
-          if (dbUser) {
-            setUser(dbUser)
-            setPaymentLinks(db.getPaymentLinksByUserId(dbUser.id))
-            setOrders(db.getOrdersByUserId(dbUser.id))
-            setWithdrawals(db.getWithdrawalsByUserId(dbUser.id))
-          } else {
-            // 如果数据库中没有用户，创建一个新用户
-            const newUser = db.createUser({
-              name: userData.name || "",
-              email: userData.email || "",
-              phone: userData.phone || "",
-              password: userData.password || "",
-              role: 'user',
-              status: 'active',
-              balance: 0,
-              totalEarnings: 0,
-              totalWithdrawals: 0
-            })
-            setUser(newUser)
-          }
+          // 直接使用localStorage中的用户数据
+          setUser({
+            id: userData.id || Date.now().toString(),
+            name: userData.name || "",
+            email: userData.email || "",
+            phone: userData.phone || "",
+            role: userData.role || 'user',
+            userType: userData.userType || 'registered',
+            status: 'active',
+            createdAt: userData.createdAt ? new Date(userData.createdAt) : new Date(),
+            updatedAt: new Date(),
+            balance: 0,
+            totalEarnings: 0,
+            totalWithdrawals: 0
+          })
+          
+          // 初始化一些模拟数据
+          setPaymentLinks([])
+          setOrders([])
+          setWithdrawals([])
         } catch (error) {
           console.error("Failed to load user data:", error)
         }
@@ -98,32 +97,84 @@ export default function UserDashboard() {
   const handleCreatePaymentLink = async () => {
     if (!user || !newLink.title || !newLink.amount) return
 
-    const link: PaymentLink = {
-      id: `link-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      userId: user.id,
-      title: newLink.title,
-      description: newLink.description,
-      amount: newLink.amount,
-      currency: newLink.currency,
-      isActive: true,
-      expiresAt: newLink.expiresAt ? new Date(newLink.expiresAt) : undefined,
-      maxUses: newLink.maxUses ? parseInt(newLink.maxUses) : undefined,
-      usedCount: 0,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
+    try {
+      // 创建支付链接数据
+      const linkData = {
+        userId: user.id,
+        title: newLink.title,
+        description: newLink.description,
+        amount: newLink.amount,
+        currency: newLink.currency,
+        isActive: true,
+        expiresAt: newLink.expiresAt ? new Date(newLink.expiresAt) : undefined,
+        maxUses: newLink.maxUses ? parseInt(newLink.maxUses) : undefined
+      }
 
-    const createdLink = db.createPaymentLink(link)
-    setPaymentLinks(prev => [...prev, createdLink])
-    setNewLink({
-      title: "",
-      description: "",
-      amount: 0,
-      currency: "CNY",
-      expiresAt: "",
-      maxUses: ""
-    })
-    setIsCreateLinkOpen(false)
+      // 测试街口支付API连接
+      console.log('🧪 测试街口支付API连接...')
+      const connectionTest = await jkopayService.testConnection()
+      console.log('API连接测试结果:', connectionTest)
+
+      if (!connectionTest.success) {
+        alert(`街口支付API连接失败: ${connectionTest.message}\n\n请检查网络连接和API配置`)
+        return
+      }
+
+      // 创建街口支付订单
+      const paymentRequest = {
+        orderId: `link-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        amount: Math.round(newLink.amount), // 街口支付要求台币整数（元为单位）
+        description: newLink.description || newLink.title,
+        customerInfo: {
+          name: user.name,
+          email: user.email,
+          phone: user.phone
+        }
+      }
+
+      const paymentResponse = await jkopayService.createPayment(paymentRequest)
+      console.log('街口支付订单创建结果:', paymentResponse)
+      console.log('paymentResponse.success:', paymentResponse.success)
+      console.log('paymentResponse.error:', paymentResponse.error)
+
+      if (!paymentResponse.success) {
+        console.error('支付创建失败，错误信息:', paymentResponse.error)
+        alert(`街口支付订单创建失败: ${paymentResponse.error}\n\n请检查API参数和签名`)
+        return
+      }
+
+      // 保存支付链接到数据库（使用街口支付返回的订单ID）
+      const linkDataWithOrderId = {
+        ...linkData,
+        // 可以在这里添加街口支付返回的订单ID等信息
+      }
+      
+      const createdLink = db.createPaymentLink(linkDataWithOrderId)
+      console.log('💾 支付链接已保存到数据库:', createdLink)
+
+      // 更新本地状态
+      setPaymentLinks(prev => [...prev, createdLink])
+      
+      // 显示成功消息
+      alert(`收款链接创建成功！\n\n链接ID: ${createdLink.id}\n街口支付订单ID: ${paymentResponse.transactionId}\n支付URL: ${paymentResponse.paymentUrl}\n\n链接地址: http://localhost:3001/pay/${createdLink.id}`)
+      
+      // 重置表单
+      setNewLink({
+        title: "",
+        description: "",
+        amount: 0,
+        currency: "TWD",
+        expiresAt: "",
+        maxUses: ""
+      })
+      setIsCreateLinkOpen(false)
+
+    } catch (error) {
+      console.error('创建收款链接时发生错误:', error)
+      console.error('错误详情:', error instanceof Error ? error.message : String(error))
+      console.error('错误堆栈:', error instanceof Error ? error.stack : 'No stack trace')
+      alert(`创建收款链接时发生错误: ${error instanceof Error ? error.message : String(error)}\n\n请检查控制台获取详细信息`)
+    }
   }
 
   const handleWithdraw = async () => {
@@ -166,9 +217,9 @@ export default function UserDashboard() {
   }
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('zh-CN', {
+    return new Intl.NumberFormat('zh-TW', {
       style: 'currency',
-      currency: 'CNY'
+      currency: 'TWD'
     }).format(amount)
   }
 
@@ -348,16 +399,15 @@ export default function UserDashboard() {
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <Label htmlFor="currency">货币</Label>
-                            <Select value={newLink.currency} onValueChange={(value) => setNewLink(prev => ({ ...prev, currency: value }))}>
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="CNY">人民币 (CNY)</SelectItem>
-                                <SelectItem value="USD">美元 (USD)</SelectItem>
-                                <SelectItem value="HKD">港币 (HKD)</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            <Input
+                              id="currency"
+                              value="台币 (TWD)"
+                              disabled
+                              className="bg-gray-50"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                              目前仅支持台币，使用街口支付
+                            </p>
                           </div>
                           <div>
                             <Label htmlFor="maxUses">最大使用次数</Label>

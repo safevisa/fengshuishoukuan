@@ -87,8 +87,12 @@ export default function HomePage() {
         // 这里可以从localStorage获取用户信息
         const userData = localStorage.getItem("current_user")
         if (userData) {
-          setUser(JSON.parse(userData))
+          const parsedUser = JSON.parse(userData)
+          setUser(parsedUser)
         }
+      } else {
+        setIsLoggedIn(false)
+        setUser(null)
       }
     }
     
@@ -162,16 +166,19 @@ export default function HomePage() {
                       會員中心
                     </Button>
                   </Link>
-                  <Link href="/dashboard">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="border-amber-300 text-amber-700 hover:bg-amber-50 bg-transparent"
-                    >
-                      <BarChart3 className="h-4 w-4 mr-2" />
-                      工作台
-                    </Button>
-                  </Link>
+                  {/* 只有管理员创建的用户才能看到工作台 */}
+                  {user && user.userType === 'admin_created' && (
+                    <Link href="/dashboard">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-amber-300 text-amber-700 hover:bg-amber-50 bg-transparent"
+                      >
+                        <BarChart3 className="h-4 w-4 mr-2" />
+                        工作台
+                      </Button>
+                    </Link>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"

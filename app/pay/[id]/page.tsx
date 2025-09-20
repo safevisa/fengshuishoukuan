@@ -93,9 +93,9 @@ export default function PaymentPage() {
   }
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('zh-CN', {
+    return new Intl.NumberFormat('zh-TW', {
       style: 'currency',
-      currency: 'CNY'
+      currency: 'TWD'
     }).format(amount)
   }
 

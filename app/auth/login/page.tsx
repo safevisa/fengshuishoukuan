@@ -55,6 +55,7 @@ export default function LoginPage() {
         // 保存用户信息到localStorage
         if (typeof window !== "undefined" && result.user) {
           localStorage.setItem("current_user", JSON.stringify(result.user))
+          localStorage.setItem("current_user_email", result.user.email)
         }
         alert(result.message)
         // Redirect to dashboard

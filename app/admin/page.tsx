@@ -21,9 +21,13 @@ import {
   Search
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { User, Order, Payment, Withdrawal, FinancialReport } from "@/lib/types"
 import { db } from "@/lib/database"
+import { authService } from "@/lib/auth"
+import Link from "next/link"
 
 export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([])
@@ -33,17 +37,57 @@ export default function AdminDashboard() {
   const [financialReport, setFinancialReport] = useState<FinancialReport | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [isCreateUserOpen, setIsCreateUserOpen] = useState(false)
+  const [newUser, setNewUser] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    password: "",
+    role: "user"
+  })
 
   useEffect(() => {
     loadData()
   }, [])
 
   const loadData = () => {
-    setUsers(db.getAllUsers())
+    // 使用authService获取用户列表
+    setUsers(authService.getAllUsers())
     setOrders(Array.from(db['orders'].values()))
     setPayments(Array.from(db['payments'].values()))
     setWithdrawals(Array.from(db['withdrawals'].values()))
     setFinancialReport(db.generateFinancialReport())
+  }
+
+  const handleCreateUser = async () => {
+    if (!newUser.name || !newUser.email || !newUser.phone || !newUser.password) {
+      alert("请填写所有必需字段")
+      return
+    }
+
+    try {
+      // 使用管理员创建用户API
+      const result = await authService.createUserByAdmin({
+        name: newUser.name,
+        email: newUser.email,
+        phone: newUser.phone,
+        password: newUser.password,
+        role: newUser.role as 'admin' | 'user'
+      })
+
+      if (result.success) {
+        alert(result.message)
+        setNewUser({ name: "", email: "", phone: "", password: "", role: "user" })
+        setIsCreateUserOpen(false)
+        // 刷新用户数据
+        authService.refreshUsers()
+        loadData()
+      } else {
+        alert(result.message)
+      }
+    } catch (error) {
+      alert("创建用户失败，请重试")
+    }
   }
 
   const filteredUsers = users.filter(user => 
@@ -193,6 +237,7 @@ export default function AdminDashboard() {
             <TabsTrigger value="payments">支付记录</TabsTrigger>
             <TabsTrigger value="withdrawals">提现管理</TabsTrigger>
             <TabsTrigger value="reports">财务报表</TabsTrigger>
+            <TabsTrigger value="data">数据管理</TabsTrigger>
           </TabsList>
 
           {/* 用户管理 */}
@@ -214,10 +259,92 @@ export default function AdminDashboard() {
                         className="pl-8 w-64"
                       />
                     </div>
-                    <Button size="sm">
-                      <Plus className="h-4 w-4 mr-2" />
-                      添加用户
-                    </Button>
+                    <Dialog open={isCreateUserOpen} onOpenChange={setIsCreateUserOpen}>
+                      <DialogTrigger asChild>
+                        <Button size="sm">
+                          <Plus className="h-4 w-4 mr-2" />
+                          添加用户
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                          <DialogTitle>创建新用户</DialogTitle>
+                          <DialogDescription>
+                            创建一个具有工作台访问权限的用户账号
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                          <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="name" className="text-right">
+                              姓名
+                            </Label>
+                            <Input
+                              id="name"
+                              value={newUser.name}
+                              onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                              className="col-span-3"
+                            />
+                          </div>
+                          <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="email" className="text-right">
+                              邮箱
+                            </Label>
+                            <Input
+                              id="email"
+                              type="email"
+                              value={newUser.email}
+                              onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                              className="col-span-3"
+                            />
+                          </div>
+                          <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="phone" className="text-right">
+                              电话
+                            </Label>
+                            <Input
+                              id="phone"
+                              value={newUser.phone}
+                              onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
+                              className="col-span-3"
+                            />
+                          </div>
+                          <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="password" className="text-right">
+                              密码
+                            </Label>
+                            <Input
+                              id="password"
+                              type="password"
+                              value={newUser.password}
+                              onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                              className="col-span-3"
+                            />
+                          </div>
+                          <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="role" className="text-right">
+                              角色
+                            </Label>
+                            <Select value={newUser.role} onValueChange={(value) => setNewUser({ ...newUser, role: value })}>
+                              <SelectTrigger className="col-span-3">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="user">普通用户</SelectItem>
+                                <SelectItem value="admin">管理员</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="flex justify-end space-x-2">
+                          <Button variant="outline" onClick={() => setIsCreateUserOpen(false)}>
+                            取消
+                          </Button>
+                          <Button onClick={handleCreateUser}>
+                            创建用户
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 </div>
               </CardHeader>
@@ -230,6 +357,7 @@ export default function AdminDashboard() {
                       <TableHead>邮箱</TableHead>
                       <TableHead>电话</TableHead>
                       <TableHead>角色</TableHead>
+                      <TableHead>用户类型</TableHead>
                       <TableHead>状态</TableHead>
                       <TableHead>余额</TableHead>
                       <TableHead>注册时间</TableHead>
@@ -246,6 +374,11 @@ export default function AdminDashboard() {
                         <TableCell>
                           <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
                             {user.role === 'admin' ? '管理员' : user.role === 'merchant' ? '商户' : '用户'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={user.userType === 'admin_created' ? 'default' : 'outline'}>
+                            {user.userType === 'admin_created' ? '管理员创建' : '注册用户'}
                           </Badge>
                         </TableCell>
                         <TableCell>{getStatusBadge(user.status)}</TableCell>
@@ -459,6 +592,26 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* 数据管理 */}
+          <TabsContent value="data" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>数据管理</CardTitle>
+                <CardDescription>管理系统数据和存储</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8">
+                  <p className="text-gray-600 mb-4">数据管理功能已移至独立页面</p>
+                  <Link href="/admin/data-management">
+                    <Button>
+                      进入数据管理页面
+                    </Button>
+                  </Link>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

@@ -21,7 +21,21 @@ export default function UserGuard({ children }: UserGuardProps) {
       const currentUser = localStorage.getItem("current_user")
       
       if (currentUserEmail && currentUser) {
-        setIsLoggedIn(true)
+        try {
+          const userData = JSON.parse(currentUser)
+          // 检查用户类型，只有管理员创建的用户才能访问工作台
+          if (userData.userType === 'admin_created') {
+            setIsLoggedIn(true)
+          } else {
+            // 注册用户无权访问工作台
+            setIsLoggedIn(false)
+            router.push("/")
+          }
+        } catch (error) {
+          console.error("Failed to parse user data:", error)
+          setIsLoggedIn(false)
+          router.push("/auth/login")
+        }
       } else {
         // 清除无效的会话数据
         localStorage.removeItem("current_user_email")

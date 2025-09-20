@@ -22,6 +22,7 @@ class Database {
   private paymentMethods: Map<string, PaymentMethod> = new Map();
 
   constructor() {
+    this.loadData(); // 先加载已保存的数据
     this.initializeDefaultData();
   }
 
@@ -273,6 +274,24 @@ class Database {
       updatedAt: new Date()
     };
     this.paymentLinks.set(id, newLink);
+    this.saveData(); // 保存数据到localStorage
+    
+    // 同时保存到增强存储
+    if (typeof window !== 'undefined') {
+      try {
+        const { enhancedStorage } = require('./storage-enhanced');
+        enhancedStorage.createPaymentLink({
+          ...link,
+          id,
+          usedCount: 0,
+          createdAt: newLink.createdAt.toISOString(),
+          updatedAt: newLink.updatedAt.toISOString()
+        });
+      } catch (error) {
+        console.warn('Failed to save to enhanced storage:', error);
+      }
+    }
+    
     return newLink;
   }
 
@@ -369,6 +388,54 @@ class Database {
   // 支付方式相关
   getPaymentMethods(): PaymentMethod[] {
     return Array.from(this.paymentMethods.values()).filter(method => method.isActive);
+  }
+
+  // 数据持久化方法
+  private saveData() {
+    if (typeof window !== 'undefined') {
+      try {
+        const data = {
+          users: Array.from(this.users.entries()),
+          orders: Array.from(this.orders.entries()),
+          payments: Array.from(this.payments.entries()),
+          withdrawals: Array.from(this.withdrawals.entries()),
+          financialReports: Array.from(this.financialReports.entries()),
+          feeRules: Array.from(this.feeRules.entries()),
+          paymentLinks: Array.from(this.paymentLinks.entries()),
+          paymentMethods: Array.from(this.paymentMethods.entries())
+        };
+        localStorage.setItem('fengshui_database', JSON.stringify(data));
+        console.log('💾 数据已保存到localStorage');
+      } catch (error) {
+        console.error('保存数据到localStorage失败:', error);
+      }
+    }
+  }
+
+  // 从localStorage加载数据
+  private loadData() {
+    if (typeof window !== 'undefined') {
+      try {
+        const data = localStorage.getItem('fengshui_database');
+        if (data) {
+          const parsedData = JSON.parse(data);
+          
+          // 恢复Map对象
+          this.users = new Map(parsedData.users || []);
+          this.orders = new Map(parsedData.orders || []);
+          this.payments = new Map(parsedData.payments || []);
+          this.withdrawals = new Map(parsedData.withdrawals || []);
+          this.financialReports = new Map(parsedData.financialReports || []);
+          this.feeRules = new Map(parsedData.feeRules || []);
+          this.paymentLinks = new Map(parsedData.paymentLinks || []);
+          this.paymentMethods = new Map(parsedData.paymentMethods || []);
+          
+          console.log('📂 数据已从localStorage加载');
+        }
+      } catch (error) {
+        console.error('从localStorage加载数据失败:', error);
+      }
+    }
   }
 }
 

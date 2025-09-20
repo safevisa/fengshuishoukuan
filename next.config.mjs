@@ -9,9 +9,10 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  output: 'export',
-  trailingSlash: true,
-  distDir: 'out',
+  // 注释掉静态导出配置，使用SSR模式
+  // output: 'export',
+  // trailingSlash: true,
+  // distDir: 'out',
   async headers() {
     return [
       {
