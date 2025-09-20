@@ -75,13 +75,15 @@ export const authService = {
 
     // Store current user in localStorage
     if (typeof window !== 'undefined') {
-      localStorage.setItem('fengshui_current_user', JSON.stringify({
+      localStorage.setItem('current_user', JSON.stringify({
         id: user.id,
         name: user.name,
         email: user.email,
         phone: user.phone,
+        role: user.role,
         createdAt: user.createdAt
       }))
+      localStorage.setItem('current_user_email', user.email)
     }
 
     return { 
@@ -101,14 +103,15 @@ export const authService = {
   getCurrentUser: (): Omit<User, 'password'> | null => {
     if (typeof window === 'undefined') return null
     
-    const currentUser = localStorage.getItem('fengshui_current_user')
+    const currentUser = localStorage.getItem('current_user')
     return currentUser ? JSON.parse(currentUser) : null
   },
 
   // Logout user
   logout: (): void => {
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('fengshui_current_user')
+      localStorage.removeItem('current_user')
+      localStorage.removeItem('current_user_email')
     }
   }
 }

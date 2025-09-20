@@ -28,6 +28,7 @@ export default function UserGuard({ children }: UserGuardProps) {
         localStorage.removeItem("current_user")
         router.push("/auth/login")
       }
+      setIsLoading(false)
     }
 
     // 延迟检查，确保localStorage已经设置
@@ -35,10 +36,6 @@ export default function UserGuard({ children }: UserGuardProps) {
     
     return () => clearTimeout(timer)
   }, [router])
-
-  useEffect(() => {
-    setIsLoading(false)
-  }, [])
 
   if (isLoading) {
     return (

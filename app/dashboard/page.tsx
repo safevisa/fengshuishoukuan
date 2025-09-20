@@ -56,14 +56,43 @@ export default function UserDashboard() {
   })
 
   useEffect(() => {
-    // 模拟获取当前用户（实际应用中应该从认证系统获取）
-    const currentUser = db.getUserById("user-001") || db.getAllUsers().find(u => u.role === 'user')
-    if (currentUser) {
-      setUser(currentUser)
-      setPaymentLinks(db.getPaymentLinksByUserId(currentUser.id))
-      setOrders(db.getOrdersByUserId(currentUser.id))
-      setWithdrawals(db.getWithdrawalsByUserId(currentUser.id))
+    // 从localStorage获取当前登录用户
+    const loadUserData = () => {
+      const currentUserEmail = localStorage.getItem("current_user_email")
+      const currentUserData = localStorage.getItem("current_user")
+      
+      if (currentUserEmail && currentUserData) {
+        try {
+          const userData = JSON.parse(currentUserData)
+          // 从数据库获取完整的用户信息
+          const dbUser = db.getUserByEmail(userData.email)
+          if (dbUser) {
+            setUser(dbUser)
+            setPaymentLinks(db.getPaymentLinksByUserId(dbUser.id))
+            setOrders(db.getOrdersByUserId(dbUser.id))
+            setWithdrawals(db.getWithdrawalsByUserId(dbUser.id))
+          } else {
+            // 如果数据库中没有用户，创建一个新用户
+            const newUser = db.createUser({
+              name: userData.name || "",
+              email: userData.email || "",
+              phone: userData.phone || "",
+              password: userData.password || "",
+              role: 'user',
+              status: 'active',
+              balance: 0,
+              totalEarnings: 0,
+              totalWithdrawals: 0
+            })
+            setUser(newUser)
+          }
+        } catch (error) {
+          console.error("Failed to load user data:", error)
+        }
+      }
     }
+
+    loadUserData()
   }, [])
 
   const handleCreatePaymentLink = async () => {
