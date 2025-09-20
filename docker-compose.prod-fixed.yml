@@ -1,53 +1,42 @@
 version: '3.8'
 
 services:
-  # 主应用
   app:
     build: .
     ports:
-      - "3001:3000"
+      - "0.0.0.0:3000:3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://postgres:password@db:5432/fengshui
-      - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=test-jwt-secret-key-for-development
       - JKOPAY_API_URL=https://gateway.suntone.com/payment/api/gotoPayment
       - JKOPAY_MERCHANT_ID=1888
       - JKOPAY_TERMINAL_ID=888506
       - JKOPAY_SECRET_KEY=fe5b2c5ea084426bb1f6269acbac902f
       - JKOPAY_RETURN_URL=https://jinshiying.com/payment/return
       - JKOPAY_NOTIFY_URL=https://jinshiying.com/api/payment/notify
+      - NEXT_PUBLIC_BASE_URL=https://jinshiying.com
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+    restart: unless-stopped
     depends_on:
       - db
       - redis
-    volumes:
-      - ./uploads:/app/uploads
-    restart: unless-stopped
 
-  # PostgreSQL数据库
   db:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_DB=fengshui
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=fengshui_ecommerce
+      - POSTGRES_USER=fengshui_user
+      - POSTGRES_PASSWORD=your_secure_password_here
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-    ports:
-      - "5433:5432"
     restart: unless-stopped
 
-  # Redis缓存
   redis:
     image: redis:7-alpine
-    ports:
-      - "6380:6379"
     volumes:
       - redis_data:/data
     restart: unless-stopped
-
-  # 移除Nginx，直接使用Next.js服务
 
 volumes:
   postgres_data:

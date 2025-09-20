@@ -156,7 +156,8 @@ export default function UserDashboard() {
       setPaymentLinks(prev => [...prev, createdLink])
       
       // 显示成功消息
-      alert(`收款链接创建成功！\n\n链接ID: ${createdLink.id}\n街口支付订单ID: ${paymentResponse.transactionId}\n支付URL: ${paymentResponse.paymentUrl}\n\n链接地址: http://localhost:3001/pay/${createdLink.id}`)
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://jinshiying.com'
+      alert(`收款链接创建成功！\n\n链接ID: ${createdLink.id}\n街口支付订单ID: ${paymentResponse.transactionId}\n支付URL: ${paymentResponse.paymentUrl}\n\n链接地址: ${baseUrl}/pay/${createdLink.id}`)
       
       // 重置表单
       setNewLink({

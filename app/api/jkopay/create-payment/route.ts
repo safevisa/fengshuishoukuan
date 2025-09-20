@@ -13,8 +13,8 @@ export async function POST(request: NextRequest) {
     const merchantId = process.env.JKOPAY_MERCHANT_ID || '1888'
     const terminalId = process.env.JKOPAY_TERMINAL_ID || '888506'
     const secretKey = process.env.JKOPAY_SECRET_KEY || 'fe5b2c5ea084426bb1f6269acbac902f'
-    const returnUrl = process.env.JKOPAY_RETURN_URL || 'http://localhost:3001/payment/return'
-    const notifyUrl = process.env.JKOPAY_NOTIFY_URL || 'http://localhost:3001/api/payment/notify'
+    const returnUrl = process.env.JKOPAY_RETURN_URL || 'https://jinshiying.com/payment/return'
+    const notifyUrl = process.env.JKOPAY_NOTIFY_URL || 'https://jinshiying.com/api/payment/notify'
     
     // 获取客户端IP
     const clientIP = request.headers.get('x-forwarded-for') || 

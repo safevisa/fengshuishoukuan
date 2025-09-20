@@ -204,8 +204,8 @@ export const jkopayService = new JKOPayService({
   merchantId: process.env.JKOPAY_MERCHANT_ID || '1888',
   terminalId: process.env.JKOPAY_TERMINAL_ID || '888506',
   secretKey: process.env.JKOPAY_SECRET_KEY || 'fe5b2c5ea084426bb1f6269acbac902f',
-  returnUrl: process.env.JKOPAY_RETURN_URL || 'http://localhost:3001/payment/return',
-  notifyUrl: process.env.JKOPAY_NOTIFY_URL || 'http://localhost:3001/api/payment/notify'
+  returnUrl: process.env.JKOPAY_RETURN_URL || 'https://jinshiying.com/payment/return',
+  notifyUrl: process.env.JKOPAY_NOTIFY_URL || 'https://jinshiying.com/api/payment/notify'
 })
 
 export type { PaymentRequest, PaymentResponse, PaymentStatus, JKOPayConfig }
