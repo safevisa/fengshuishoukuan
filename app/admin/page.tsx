@@ -25,7 +25,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { User, Order, Payment, Withdrawal, FinancialReport } from "@/lib/types"
-import { db } from "@/lib/database"
+import { serverAPI } from "@/lib/server-storage"
 import { authService } from "@/lib/auth"
 import Link from "next/link"
 
@@ -50,13 +50,25 @@ export default function AdminDashboard() {
     loadData()
   }, [])
 
-  const loadData = () => {
-    // 使用authService获取用户列表
-    setUsers(authService.getAllUsers())
-    setOrders(Array.from(db['orders'].values()))
-    setPayments(Array.from(db['payments'].values()))
-    setWithdrawals(Array.from(db['withdrawals'].values()))
-    setFinancialReport(db.generateFinancialReport())
+  const loadData = async () => {
+    try {
+      // 使用服务器端API获取数据
+      const [usersData, ordersData, paymentsData, withdrawalsData, financialData] = await Promise.all([
+        authService.getAllUsers(),
+        serverAPI.getAllOrders(),
+        serverAPI.getAllPayments(),
+        serverAPI.getAllWithdrawals(),
+        serverAPI.getFinancialReport()
+      ])
+      
+      setUsers(usersData)
+      setOrders(ordersData)
+      setPayments(paymentsData)
+      setWithdrawals(withdrawalsData)
+      setFinancialReport(financialData)
+    } catch (error) {
+      console.error('Error loading data:', error)
+    }
   }
 
   const handleCreateUser = async () => {
@@ -80,8 +92,8 @@ export default function AdminDashboard() {
         setNewUser({ name: "", email: "", phone: "", password: "", role: "user" })
         setIsCreateUserOpen(false)
         // 刷新用户数据
-        authService.refreshUsers()
-        loadData()
+        await authService.refreshUsers()
+        await loadData()
       } else {
         alert(result.message)
       }
@@ -143,27 +155,27 @@ export default function AdminDashboard() {
 
   return (
     <AdminGuard>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 mobile-scroll no-bounce">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-white shadow-sm border-b mobile-nav">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-bold text-gray-900">管理员后台</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">管理员后台</h1>
             </div>
             <div className="flex items-center space-x-4">
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" className="mobile-button">
                 <Download className="h-4 w-4 mr-2" />
-                导出数据
+                <span className="hidden sm:inline">导出数据</span>
               </Button>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 mobile-content">
         {/* 统计卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="mobile-stats grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">总用户数</CardTitle>
@@ -231,14 +243,16 @@ export default function AdminDashboard() {
 
         {/* 主要内容 */}
         <Tabs defaultValue="users" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="users">用户管理</TabsTrigger>
-            <TabsTrigger value="orders">订单管理</TabsTrigger>
-            <TabsTrigger value="payments">支付记录</TabsTrigger>
-            <TabsTrigger value="withdrawals">提现管理</TabsTrigger>
-            <TabsTrigger value="reports">财务报表</TabsTrigger>
-            <TabsTrigger value="data">数据管理</TabsTrigger>
-          </TabsList>
+          <div className="mobile-tabs">
+            <TabsList className="w-full">
+              <TabsTrigger value="users">用户管理</TabsTrigger>
+              <TabsTrigger value="orders">订单管理</TabsTrigger>
+              <TabsTrigger value="payments">支付记录</TabsTrigger>
+              <TabsTrigger value="withdrawals">提现管理</TabsTrigger>
+              <TabsTrigger value="reports">财务报表</TabsTrigger>
+              <TabsTrigger value="data">数据管理</TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* 用户管理 */}
           <TabsContent value="users" className="space-y-6">
@@ -249,24 +263,24 @@ export default function AdminDashboard() {
                     <CardTitle>用户管理</CardTitle>
                     <CardDescription>管理系统中的所有用户</CardDescription>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <div className="relative">
+                  <div className="mobile-button-group flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+                    <div className="relative mobile-search">
                       <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                       <Input
                         placeholder="搜索用户..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-8 w-64"
+                        className="pl-8 w-full sm:w-64 mobile-input"
                       />
                     </div>
                     <Dialog open={isCreateUserOpen} onOpenChange={setIsCreateUserOpen}>
                       <DialogTrigger asChild>
-                        <Button size="sm">
+                        <Button size="sm" className="mobile-button">
                           <Plus className="h-4 w-4 mr-2" />
                           添加用户
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="sm:max-w-[425px]">
+                      <DialogContent className="mobile-dialog sm:max-w-[425px]">
                         <DialogHeader>
                           <DialogTitle>创建新用户</DialogTitle>
                           <DialogDescription>
@@ -349,50 +363,54 @@ export default function AdminDashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>用户ID</TableHead>
-                      <TableHead>姓名</TableHead>
-                      <TableHead>邮箱</TableHead>
-                      <TableHead>电话</TableHead>
-                      <TableHead>角色</TableHead>
-                      <TableHead>用户类型</TableHead>
-                      <TableHead>状态</TableHead>
-                      <TableHead>余额</TableHead>
-                      <TableHead>注册时间</TableHead>
-                      <TableHead>操作</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredUsers.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell className="font-medium">{user.id}</TableCell>
-                        <TableCell>{user.name}</TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>{user.phone}</TableCell>
-                        <TableCell>
-                          <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                            {user.role === 'admin' ? '管理员' : user.role === 'merchant' ? '商户' : '用户'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={user.userType === 'admin_created' ? 'default' : 'outline'}>
-                            {user.userType === 'admin_created' ? '管理员创建' : '注册用户'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{getStatusBadge(user.status)}</TableCell>
-                        <TableCell>{formatCurrency(user.balance)}</TableCell>
-                        <TableCell>{formatDate(user.createdAt)}</TableCell>
-                        <TableCell>
-                          <Button variant="ghost" size="sm">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
+                <div className="mobile-table-container">
+                  <Table className="mobile-table">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>用户ID</TableHead>
+                        <TableHead>姓名</TableHead>
+                        <TableHead>邮箱</TableHead>
+                        <TableHead>电话</TableHead>
+                        <TableHead>角色</TableHead>
+                        <TableHead>用户类型</TableHead>
+                        <TableHead>状态</TableHead>
+                        <TableHead>余额</TableHead>
+                        <TableHead>注册时间</TableHead>
+                        <TableHead>操作</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredUsers.map((user) => (
+                        <TableRow key={user.id}>
+                          <TableCell className="font-medium">{user.id}</TableCell>
+                          <TableCell>{user.name}</TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>{user.phone}</TableCell>
+                          <TableCell>
+                            <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="mobile-badge">
+                              {user.role === 'admin' ? '管理员' : user.role === 'merchant' ? '商户' : '用户'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={user.userType === 'admin_created' ? 'default' : 'outline'} className="mobile-badge">
+                              {user.userType === 'admin_created' ? '管理员创建' : '注册用户'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{getStatusBadge(user.status)}</TableCell>
+                          <TableCell>{formatCurrency(user.balance || 0)}</TableCell>
+                          <TableCell>{formatDate(user.createdAt)}</TableCell>
+                          <TableCell>
+                            <div className="mobile-actions">
+                              <Button variant="ghost" size="sm" className="mobile-button">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

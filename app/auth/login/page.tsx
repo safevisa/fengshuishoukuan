@@ -52,11 +52,7 @@ export default function LoginPage() {
       const result = await authService.login(email, password)
       
       if (result.success) {
-        // 保存用户信息到localStorage
-        if (typeof window !== "undefined" && result.user) {
-          localStorage.setItem("current_user", JSON.stringify(result.user))
-          localStorage.setItem("current_user_email", result.user.email)
-        }
+        // 会话管理已由authService处理
         alert(result.message)
         // Redirect to dashboard
         window.location.href = "/dashboard"
@@ -71,14 +67,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-amber-50 to-orange-50">
+    <div className="min-h-screen bg-gradient-to-b from-amber-50 to-orange-50 mobile-scroll no-bounce">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-amber-200">
+      <header className="bg-white shadow-sm border-b border-amber-200 mobile-nav">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <Link href="/" className="flex items-center space-x-4">
               <ArrowLeft className="h-5 w-5 text-amber-600" />
-              <div className="text-2xl font-bold text-amber-800">京世盈風水</div>
+              <div className="text-xl sm:text-2xl font-bold text-amber-800">京世盈風水</div>
             </Link>
 
             <div className="hidden md:flex items-center space-x-4 text-sm text-amber-700">
@@ -96,8 +92,8 @@ export default function LoginPage() {
       </header>
 
       {/* Login Form */}
-      <div className="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-        <Card className="w-full max-w-md border-amber-200">
+      <div className="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 mobile-content">
+        <Card className="w-full max-w-md border-amber-200 mobile-card">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-bold text-amber-800">會員登入</CardTitle>
             <CardDescription className="text-amber-600">登入您的帳戶以享受專屬服務</CardDescription>
@@ -126,7 +122,7 @@ export default function LoginPage() {
                       setErrors(prev => ({ ...prev, email: undefined }))
                     }
                   }}
-                  className={`border-amber-300 focus:border-amber-500 ${errors.email ? 'border-red-500' : ''}`}
+                  className={`border-amber-300 focus:border-amber-500 mobile-input ${errors.email ? 'border-red-500' : ''}`}
                 />
                 {errors.email && (
                   <p className="text-red-500 text-sm">{errors.email}</p>
@@ -149,7 +145,7 @@ export default function LoginPage() {
                         setErrors(prev => ({ ...prev, password: undefined }))
                       }
                     }}
-                    className={`border-amber-300 focus:border-amber-500 pr-10 ${errors.password ? 'border-red-500' : ''}`}
+                    className={`border-amber-300 focus:border-amber-500 pr-10 mobile-input ${errors.password ? 'border-red-500' : ''}`}
                   />
                   <Button
                     type="button"
@@ -179,7 +175,7 @@ export default function LoginPage() {
                 </Link>
               </div>
 
-              <Button type="submit" className="w-full bg-amber-600 hover:bg-amber-700 text-white" disabled={isLoading}>
+              <Button type="submit" className="w-full bg-amber-600 hover:bg-amber-700 text-white mobile-button" disabled={isLoading}>
                 {isLoading ? "登入中..." : "登入"}
               </Button>
             </form>

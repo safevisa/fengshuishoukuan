@@ -1,4 +1,5 @@
-import { dataStorage } from './storage'
+import { serverAPI } from './server-storage'
+import { productionDB } from './production-database'
 
 interface User {
   id: string
@@ -7,9 +8,107 @@ interface User {
   phone: string
   password: string
   role: 'admin' | 'user'
-  userType: 'registered' | 'admin_created' // 用户类型：注册用户 vs 管理员创建的用户
+  userType?: 'registered' | 'admin_created'
+  status?: 'active' | 'inactive' | 'suspended'
+  balance?: number
   createdAt: Date
 }
+
+// 会话管理 - 使用服务器端存储 + 客户端缓存
+class SessionManager {
+  private static instance: SessionManager
+  private currentUser: Omit<User, 'password'> | null = null
+  private sessionKey = 'fengshui_session'
+
+  static getInstance(): SessionManager {
+    if (!SessionManager.instance) {
+      SessionManager.instance = new SessionManager()
+    }
+    return SessionManager.instance
+  }
+
+  // 设置当前用户会话
+  setCurrentUser(user: Omit<User, 'password'>): void {
+    this.currentUser = user
+    if (typeof window !== 'undefined') {
+      // 存储到localStorage作为缓存
+      localStorage.setItem(this.sessionKey, JSON.stringify({
+        user,
+        timestamp: Date.now()
+      }))
+    }
+  }
+
+  // 获取当前用户
+  getCurrentUser(): Omit<User, 'password'> | null {
+    if (this.currentUser) {
+      return this.currentUser
+    }
+
+    if (typeof window !== 'undefined') {
+      try {
+        const sessionData = localStorage.getItem(this.sessionKey)
+        if (sessionData) {
+          const { user, timestamp } = JSON.parse(sessionData)
+          // 检查会话是否过期（24小时）
+          if (Date.now() - timestamp < 24 * 60 * 60 * 1000) {
+            this.currentUser = user
+            return user
+          } else {
+            // 会话过期，清除本地数据
+            this.clearSession()
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing session data:', error)
+        this.clearSession()
+      }
+    }
+
+    return null
+  }
+
+  // 清除会话
+  clearSession(): void {
+    this.currentUser = null
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(this.sessionKey)
+    }
+  }
+
+  // 验证会话有效性
+  async validateSession(): Promise<boolean> {
+    const user = this.getCurrentUser()
+    if (!user) return false
+
+    try {
+      // 从服务器验证用户是否存在
+      const serverUser = await serverAPI.getUserById(user.id)
+      if (serverUser) {
+        // 更新本地用户信息
+        this.setCurrentUser({
+          id: serverUser.id,
+          name: serverUser.name,
+          email: serverUser.email,
+          phone: serverUser.phone,
+          role: serverUser.role,
+          userType: serverUser.userType,
+          status: serverUser.status,
+          balance: serverUser.balance,
+          createdAt: serverUser.createdAt
+        })
+        return true
+      }
+    } catch (error) {
+      console.error('Session validation error:', error)
+    }
+
+    this.clearSession()
+    return false
+  }
+}
+
+const sessionManager = SessionManager.getInstance()
 
 export const authService = {
   // Register a new user
@@ -19,78 +118,88 @@ export const authService = {
     phone: string
     password: string
   }): Promise<{ success: boolean; message: string }> => {
-    // Check if user already exists
-    const existingUser = dataStorage.getUserByEmail(userData.email)
-    if (existingUser) {
-      return { success: false, message: '此電子郵件已被註冊' }
+    try {
+      // 在生产环境中使用生产数据库
+      if (process.env.NODE_ENV === 'production') {
+        const existingUser = await productionDB.getUserByEmail(userData.email)
+        if (existingUser) {
+          return { success: false, message: '此電子郵件已被註冊' }
+        }
+
+        const newUser = {
+          id: Date.now().toString(),
+          ...userData,
+          role: 'user' as const,
+          userType: 'registered' as const,
+          status: 'active' as const,
+          balance: 0,
+          createdAt: new Date()
+        }
+
+        await productionDB.addUser(newUser)
+        return { success: true, message: '註冊成功！歡迎加入京世盈風水！' }
+      } else {
+        // 开发环境使用原有逻辑
+        const result = await serverAPI.createUser({
+          ...userData,
+          role: 'user',
+          userType: 'registered',
+          status: 'active',
+          balance: 0
+        })
+        return result
+      }
+    } catch (error) {
+      return { success: false, message: '註冊失敗，請重試' }
     }
-
-    // Create new user
-    const newUser: User = {
-      id: Date.now().toString(),
-      ...userData,
-      role: 'user', // 默认角色为普通用户
-      userType: 'registered', // 注册用户类型
-      createdAt: new Date()
-    }
-
-    dataStorage.addUser(newUser)
-
-    return { success: true, message: '註冊成功！歡迎加入京世盈風水！' }
   },
 
   // Login user
   login: async (email: string, password: string): Promise<{ success: boolean; message: string; user?: Omit<User, 'password'> }> => {
-    const users = dataStorage.getAllUsers()
-    const user = users.find(u => u.email === email && u.password === password)
-    
-    if (!user) {
-      return { success: false, message: '電子郵件或密碼錯誤，請重試' }
-    }
+    try {
+      // 在生产环境中使用生产数据库
+      if (process.env.NODE_ENV === 'production') {
+        const user = await productionDB.getUserByEmail(email)
+        
+        if (!user || user.password !== password) {
+          return { success: false, message: '電子郵件或密碼錯誤，請重試' }
+        }
 
-    // Store current user in localStorage
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('current_user', JSON.stringify({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        userType: user.userType,
-        createdAt: user.createdAt
-      }))
-      localStorage.setItem('current_user_email', user.email)
-    }
+        if (user.status !== 'active') {
+          return { success: false, message: '帳戶已被暫停，請聯繫管理員' }
+        }
 
-    return { 
-      success: true, 
-      message: '登入成功！歡迎回來！',
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        userType: user.userType,
-        createdAt: user.createdAt
+        const { password: _, ...userWithoutPassword } = user
+        sessionManager.setCurrentUser(userWithoutPassword)
+        
+        return { 
+          success: true, 
+          message: '登入成功！歡迎回來！',
+          user: userWithoutPassword
+        }
+      } else {
+        // 开发环境使用原有逻辑
+        const result = await serverAPI.loginUser(email, password)
+        
+        if (result.success && result.user) {
+          sessionManager.setCurrentUser(result.user)
+        }
+
+        return result
       }
+    } catch (error) {
+      return { success: false, message: '登入失敗，請重試' }
     }
   },
 
   // Get current user
   getCurrentUser: (): Omit<User, 'password'> | null => {
-    if (typeof window === 'undefined') return null
-    
-    const currentUser = localStorage.getItem('current_user')
-    return currentUser ? JSON.parse(currentUser) : null
+    return sessionManager.getCurrentUser()
   },
 
   // Logout user
   logout: (): void => {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('current_user')
-      localStorage.removeItem('current_user_email')
-    }
+    sessionManager.clearSession()
   },
 
   // 管理员创建用户（具有工作台权限）
@@ -101,42 +210,42 @@ export const authService = {
     password: string
     role: 'admin' | 'user'
   }): Promise<{ success: boolean; message: string }> => {
-    // 检查用户是否已存在
-    const existingUser = dataStorage.getUserByEmail(userData.email)
-    if (existingUser) {
-      return { success: false, message: '此電子郵件已被使用' }
+    try {
+      const result = await serverAPI.createUser({
+        ...userData,
+        userType: 'admin_created',
+        status: 'active',
+        balance: 0
+      })
+
+      return result
+    } catch (error) {
+      return { success: false, message: '創建用戶失敗，請重試' }
     }
-
-    // 创建新用户（管理员创建类型）
-    const newUser: User = {
-      id: Date.now().toString(),
-      ...userData,
-      userType: 'admin_created', // 管理员创建的用户类型
-      createdAt: new Date()
-    }
-
-    dataStorage.addUser(newUser)
-
-    return { success: true, message: '用戶創建成功！該用戶具有工作台訪問權限。' }
   },
 
-  // 获取所有用户（管理员用）
-  getAllUsers: (): Omit<User, 'password'>[] => {
-    const users = dataStorage.getAllUsers()
-    return users.map(user => ({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      role: user.role,
-      userType: user.userType,
-      createdAt: user.createdAt
-    }))
+  // 获取所有用户（管理员功能）
+  getAllUsers: async (): Promise<User[]> => {
+    try {
+      return await serverAPI.getAllUsers()
+    } catch (error) {
+      console.error('Error fetching users:', error)
+      return []
+    }
   },
 
   // 刷新用户数据
-  refreshUsers: (): void => {
-    dataStorage.refresh()
+  refreshUsers: async (): Promise<void> => {
+    try {
+      // 验证当前会话
+      await sessionManager.validateSession()
+    } catch (error) {
+      console.error('Error refreshing users:', error)
+    }
+  },
+
+  // 验证会话
+  validateSession: async (): Promise<boolean> => {
+    return await sessionManager.validateSession()
   }
 }
-
