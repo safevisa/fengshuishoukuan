@@ -1,13 +1,17 @@
 // 生产环境数据库配置
 import { User, Order, Payment, Withdrawal, FinancialReport } from './types'
+import fs from 'fs'
+import path from 'path'
 
-// 生产环境数据存储 - 使用PostgreSQL + Redis
+// 生产环境数据存储 - 使用文件存储
 class ProductionDatabase {
   private static instance: ProductionDatabase
   private users: Map<string, User> = new Map()
   private orders: Map<string, Order> = new Map()
   private payments: Map<string, Payment> = new Map()
   private withdrawals: Map<string, Withdrawal> = new Map()
+  private paymentLinks: Map<string, any> = new Map()
+  private dataDir: string
 
   static getInstance(): ProductionDatabase {
     if (!ProductionDatabase.instance) {
@@ -17,7 +21,76 @@ class ProductionDatabase {
   }
 
   constructor() {
+    this.dataDir = path.join(process.cwd(), 'data')
+    this.ensureDataDir()
+    this.loadDataFromFiles()
     this.initializeDefaultUsers()
+  }
+
+  private ensureDataDir() {
+    if (!fs.existsSync(this.dataDir)) {
+      fs.mkdirSync(this.dataDir, { recursive: true })
+    }
+  }
+
+  private loadDataFromFiles() {
+    try {
+      // 加载用户数据
+      const usersFile = path.join(this.dataDir, 'users.json')
+      if (fs.existsSync(usersFile)) {
+        const usersData = JSON.parse(fs.readFileSync(usersFile, 'utf8'))
+        usersData.forEach((user: User) => {
+          this.users.set(user.id, { ...user, createdAt: new Date(user.createdAt) })
+        })
+      }
+
+      // 加载订单数据
+      const ordersFile = path.join(this.dataDir, 'orders.json')
+      if (fs.existsSync(ordersFile)) {
+        const ordersData = JSON.parse(fs.readFileSync(ordersFile, 'utf8'))
+        ordersData.forEach((order: Order) => {
+          this.orders.set(order.id, { ...order, createdAt: new Date(order.createdAt) })
+        })
+      }
+
+      // 加载支付数据
+      const paymentsFile = path.join(this.dataDir, 'payments.json')
+      if (fs.existsSync(paymentsFile)) {
+        const paymentsData = JSON.parse(fs.readFileSync(paymentsFile, 'utf8'))
+        paymentsData.forEach((payment: Payment) => {
+          this.payments.set(payment.id, { ...payment, createdAt: new Date(payment.createdAt) })
+        })
+      }
+
+      // 加载提现数据
+      const withdrawalsFile = path.join(this.dataDir, 'withdrawals.json')
+      if (fs.existsSync(withdrawalsFile)) {
+        const withdrawalsData = JSON.parse(fs.readFileSync(withdrawalsFile, 'utf8'))
+        withdrawalsData.forEach((withdrawal: Withdrawal) => {
+          this.withdrawals.set(withdrawal.id, { ...withdrawal, createdAt: new Date(withdrawal.createdAt) })
+        })
+      }
+
+      // 加载收款链接数据
+      const paymentLinksFile = path.join(this.dataDir, 'payment-links.json')
+      if (fs.existsSync(paymentLinksFile)) {
+        const paymentLinksData = JSON.parse(fs.readFileSync(paymentLinksFile, 'utf8'))
+        paymentLinksData.forEach((link: any) => {
+          this.paymentLinks.set(link.id, { ...link, createdAt: new Date(link.createdAt) })
+        })
+      }
+    } catch (error) {
+      console.error('Error loading data from files:', error)
+    }
+  }
+
+  private saveDataToFile(dataType: string, data: any[]) {
+    try {
+      const filePath = path.join(this.dataDir, `${dataType}.json`)
+      fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
+    } catch (error) {
+      console.error(`Error saving ${dataType} data:`, error)
+    }
   }
 
   private initializeDefaultUsers() {
@@ -55,7 +128,7 @@ class ProductionDatabase {
   // 用户管理
   async addUser(user: User): Promise<void> {
     this.users.set(user.id, user)
-    // 在生产环境中，这里会保存到PostgreSQL
+    this.saveDataToFile('users', Array.from(this.users.values()))
     console.log(`User ${user.email} added to production database`)
   }
 
@@ -80,13 +153,18 @@ class ProductionDatabase {
     const user = this.users.get(id)
     if (user) {
       this.users.set(id, { ...user, ...updates })
+      this.saveDataToFile('users', Array.from(this.users.values()))
       return true
     }
     return false
   }
 
   async deleteUser(id: string): Promise<boolean> {
-    return this.users.delete(id)
+    const result = this.users.delete(id)
+    if (result) {
+      this.saveDataToFile('users', Array.from(this.users.values()))
+    }
+    return result
   }
 
   // 订单管理
@@ -149,6 +227,39 @@ class ProductionDatabase {
     }
   }
 
+  // 收款链接管理
+  async addPaymentLink(linkData: any): Promise<void> {
+    this.paymentLinks.set(linkData.id, linkData)
+    this.saveDataToFile('payment-links', Array.from(this.paymentLinks.values()))
+    console.log(`Payment link ${linkData.id} added to production database`)
+  }
+
+  async getPaymentLinkById(id: string): Promise<any | undefined> {
+    return this.paymentLinks.get(id)
+  }
+
+  async getAllPaymentLinks(): Promise<any[]> {
+    return Array.from(this.paymentLinks.values())
+  }
+
+  async updatePaymentLink(id: string, updates: Partial<any>): Promise<boolean> {
+    const link = this.paymentLinks.get(id)
+    if (link) {
+      this.paymentLinks.set(id, { ...link, ...updates })
+      this.saveDataToFile('payment-links', Array.from(this.paymentLinks.values()))
+      return true
+    }
+    return false
+  }
+
+  async deletePaymentLink(id: string): Promise<boolean> {
+    const result = this.paymentLinks.delete(id)
+    if (result) {
+      this.saveDataToFile('payment-links', Array.from(this.paymentLinks.values()))
+    }
+    return result
+  }
+
   // 数据导出
   async exportAllData() {
     return {
@@ -156,6 +267,7 @@ class ProductionDatabase {
       orders: await this.getAllOrders(),
       payments: await this.getAllPayments(),
       withdrawals: await this.getAllWithdrawals(),
+      paymentLinks: await this.getAllPaymentLinks(),
       financialReport: await this.generateFinancialReport(),
       exportedAt: new Date()
     }

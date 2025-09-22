@@ -23,44 +23,34 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // 创建收款链接
-    const linkResult = await productionPaymentService.createPaymentLink({
+    // 生成链接ID
+    const linkId = `link-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    // 创建收款链接数据
+    const linkData = {
+      id: linkId,
       amount: Number(amount),
       description,
-      customerEmail,
-      customerPhone
+      customerEmail: customerEmail || '',
+      customerPhone: customerPhone || '',
+      status: 'active',
+      createdAt: new Date()
+    };
+
+    // 保存到数据库
+    await productionDB.addPaymentLink(linkData);
+
+    // 生成支付URL
+    const paymentUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://jinshiying.com'}/pay/${linkId}`;
+
+    return NextResponse.json({
+      success: true,
+      message: '收款链接创建成功',
+      linkId: linkId,
+      paymentUrl: paymentUrl,
+      amount: Number(amount),
+      description
     });
-
-    if (linkResult.success) {
-      // 保存链接信息到数据库
-      const linkData = {
-        id: linkResult.linkId,
-        amount: Number(amount),
-        description,
-        customerEmail: customerEmail || '',
-        customerPhone: customerPhone || '',
-        paymentUrl: linkResult.paymentUrl,
-        status: 'active',
-        createdAt: new Date()
-      };
-
-      // 这里可以保存到数据库，暂时记录日志
-      console.log('Payment link created:', linkData);
-
-      return NextResponse.json({
-        success: true,
-        message: '收款链接创建成功',
-        linkId: linkResult.linkId,
-        paymentUrl: linkResult.paymentUrl,
-        amount: Number(amount),
-        description
-      });
-    } else {
-      return NextResponse.json({
-        success: false,
-        message: linkResult.message
-      }, { status: 500 });
-    }
   } catch (error) {
     console.error('Payment link creation error:', error);
     return NextResponse.json({
@@ -73,11 +63,10 @@ export async function POST(request: NextRequest) {
 // 获取收款链接列表
 export async function GET(request: NextRequest) {
   try {
-    // 这里应该从数据库获取收款链接列表
-    // 暂时返回空列表
+    const links = await productionDB.getAllPaymentLinks();
     return NextResponse.json({
       success: true,
-      links: []
+      links: links
     });
   } catch (error) {
     console.error('Get payment links error:', error);

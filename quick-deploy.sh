@@ -59,8 +59,9 @@ EOF
 echo "🏗️ 构建应用..."
 pnpm run build
 
-# 10. 创建数据目录
+# 10. 创建数据目录并初始化数据
 mkdir -p data uploads logs
+node init-data.js
 
 # 11. 创建systemd服务
 echo "⚙️ 创建服务..."
