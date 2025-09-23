@@ -52,19 +52,25 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     try {
-      // 使用服务器端API获取数据
-      const [usersData, ordersData, paymentsData, withdrawalsData, financialData] = await Promise.all([
-        authService.getAllUsers(),
-        serverAPI.getAllOrders(),
-        serverAPI.getAllPayments(),
-        serverAPI.getAllWithdrawals(),
-        serverAPI.getFinancialReport()
+      // 使用API获取数据
+      const [usersResponse, ordersResponse, paymentsResponse, withdrawalsResponse, financialResponse] = await Promise.all([
+        fetch('/api/users'),
+        fetch('/api/orders'),
+        fetch('/api/payments'),
+        fetch('/api/withdrawals'),
+        fetch('/api/financial-report')
       ])
       
-      setUsers(usersData)
-      setOrders(ordersData)
-      setPayments(paymentsData)
-      setWithdrawals(withdrawalsData)
+      const usersData = usersResponse.ok ? await usersResponse.json() : { users: [] }
+      const ordersData = ordersResponse.ok ? await ordersResponse.json() : { orders: [] }
+      const paymentsData = paymentsResponse.ok ? await paymentsResponse.json() : { payments: [] }
+      const withdrawalsData = withdrawalsResponse.ok ? await withdrawalsResponse.json() : { withdrawals: [] }
+      const financialData = financialResponse.ok ? await financialResponse.json() : null
+      
+      setUsers(usersData.users || [])
+      setOrders(ordersData.orders || [])
+      setPayments(paymentsData.payments || [])
+      setWithdrawals(withdrawalsData.withdrawals || [])
       setFinancialReport(financialData)
     } catch (error) {
       console.error('Error loading data:', error)
@@ -78,26 +84,34 @@ export default function AdminDashboard() {
     }
 
     try {
-      // 使用管理员创建用户API
-      const result = await authService.createUserByAdmin({
-        name: newUser.name,
-        email: newUser.email,
-        phone: newUser.phone,
-        password: newUser.password,
-        role: newUser.role as 'admin' | 'user'
+      // 使用API创建用户
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: newUser.name,
+          email: newUser.email,
+          phone: newUser.phone,
+          password: newUser.password,
+          role: newUser.role
+        })
       })
+
+      const result = await response.json()
 
       if (result.success) {
         alert(result.message)
         setNewUser({ name: "", email: "", phone: "", password: "", role: "user" })
         setIsCreateUserOpen(false)
         // 刷新用户数据
-        await authService.refreshUsers()
         await loadData()
       } else {
         alert(result.message)
       }
     } catch (error) {
+      console.error('Create user error:', error)
       alert("创建用户失败，请重试")
     }
   }

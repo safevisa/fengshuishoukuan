@@ -10,17 +10,24 @@ export async function POST(request: NextRequest) {
     if (!email || !password) {
       return NextResponse.json({
         success: false,
-        message: '请提供邮箱和密码'
+        message: '邮箱和密码不能为空'
       }, { status: 400 });
     }
 
-    // 从生产数据库查找用户
+    // 查找用户
     const user = await productionDB.getUserByEmail(email);
-    
-    if (!user || user.password !== password) {
+    if (!user) {
       return NextResponse.json({
         success: false,
-        message: '邮箱或密码错误'
+        message: '用户不存在'
+      }, { status: 401 });
+    }
+
+    // 验证密码（注意：生产环境应该使用加密密码比较）
+    if (user.password !== password) {
+      return NextResponse.json({
+        success: false,
+        message: '密码错误'
       }, { status: 401 });
     }
 
@@ -28,20 +35,26 @@ export async function POST(request: NextRequest) {
     if (user.status !== 'active') {
       return NextResponse.json({
         success: false,
-        message: '账户已被暂停，请联系管理员'
-      }, { status: 403 });
+        message: '账户已被禁用'
+      }, { status: 401 });
     }
 
     // 返回用户信息（不包含密码）
-    const { password: _, ...userWithoutPassword } = user;
-    
     return NextResponse.json({
       success: true,
       message: '登录成功',
-      user: userWithoutPassword
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        status: user.status,
+        balance: user.balance
+      }
     });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('User login error:', error);
     return NextResponse.json({
       success: false,
       message: '登录失败，请重试'

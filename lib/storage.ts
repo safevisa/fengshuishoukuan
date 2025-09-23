@@ -123,3 +123,4 @@ class DataStorage {
 
 // 创建全局存储实例
 export const dataStorage = new DataStorage()
+

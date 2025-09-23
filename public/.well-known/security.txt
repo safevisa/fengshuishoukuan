@@ -1,8 +1,0 @@
-Contact: mailto:service@crf.hk
-Contact: tel:+852-61588111
-Expires: 2025-12-31T23:59:59.000Z
-Encryption: https://jinshiying.com/pgp-key.txt
-Preferred-Languages: zh, en
-Canonical: https://jinshiying.com/.well-known/security.txt
-Policy: https://jinshiying.com/security-policy
-

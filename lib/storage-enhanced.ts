@@ -233,3 +233,4 @@ class EnhancedDataStorage {
 }
 
 export const enhancedStorage = new EnhancedDataStorage()
+

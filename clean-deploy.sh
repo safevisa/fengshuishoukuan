@@ -395,3 +395,4 @@ echo "  检查端口: ss -tlnp | grep -E ':(80|443|3000)'"
 echo "  测试连接: curl -I https://$DOMAIN"
 echo "  查看Nginx日志: tail -f /var/log/nginx/error.log"
 echo "  查看应用日志: tail -f /root/baijian/app.log"
+

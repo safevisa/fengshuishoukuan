@@ -267,3 +267,4 @@ echo "  查看应用日志: tail -f /root/baijian/app.log"
 echo "  重启应用: pkill -f 'pnpm start' && cd /root/baijian && nohup pnpm start > app.log 2>&1 &"
 echo "  查看Nginx状态: systemctl status nginx"
 echo "  查看端口: ss -tlnp | grep -E ':(80|443|3000)'"
+

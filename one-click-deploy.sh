@@ -60,3 +60,4 @@ echo "🔧 管理命令:"
 echo "  查看Docker状态: docker ps"
 echo "  查看Nginx状态: systemctl status nginx"
 echo "  重启服务: docker-compose -f docker-compose.prod-fixed.yml restart"
+

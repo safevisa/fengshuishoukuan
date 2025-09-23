@@ -223,3 +223,4 @@ systemctl is-active fengshui-app || echo "❌ 应用服务未运行"
 echo ""
 echo "🎯 完整修复完成！"
 echo "🌐 请访问: https://jinshiying.com"
+

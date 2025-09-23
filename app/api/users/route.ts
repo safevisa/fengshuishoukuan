@@ -1,6 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { productionDB } from '@/lib/production-database';
 
+// 获取所有用户
+export async function GET(request: NextRequest) {
+  try {
+    const users = await productionDB.getAllUsers();
+    
+    // 移除密码字段
+    const safeUsers = users.map(user => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      userType: user.userType,
+      status: user.status,
+      balance: user.balance,
+      createdAt: user.createdAt
+    }));
+
+    return NextResponse.json({
+      success: true,
+      users: safeUsers
+    });
+  } catch (error) {
+    console.error('Get users error:', error);
+    return NextResponse.json({
+      success: false,
+      message: '获取用户列表失败'
+    }, { status: 500 });
+  }
+}
+
+// 创建新用户
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -29,7 +61,7 @@ export async function POST(request: NextRequest) {
       name,
       email,
       phone: phone || '',
-      password, // 注意：生产环境应该加密密码
+      password,
       role,
       userType: 'admin_created',
       status: 'active',
@@ -49,11 +81,14 @@ export async function POST(request: NextRequest) {
         email: newUser.email,
         phone: newUser.phone,
         role: newUser.role,
-        status: newUser.status
+        userType: newUser.userType,
+        status: newUser.status,
+        balance: newUser.balance,
+        createdAt: newUser.createdAt
       }
     });
   } catch (error) {
-    console.error('User registration error:', error);
+    console.error('Create user error:', error);
     return NextResponse.json({
       success: false,
       message: '用户创建失败，请重试'

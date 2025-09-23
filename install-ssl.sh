@@ -94,3 +94,4 @@ echo "0 12 * * * /usr/bin/certbot renew --quiet" | sudo crontab -
 echo "✅ SSL证书安装完成！"
 echo "🌐 访问地址: https://$DOMAIN"
 echo "🔐 SSL证书将自动续期"
+

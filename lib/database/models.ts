@@ -178,3 +178,4 @@ export interface SystemSettings {
   updatedBy: string
   updatedAt: Date
 }
+

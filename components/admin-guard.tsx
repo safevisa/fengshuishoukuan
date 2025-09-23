@@ -77,3 +77,4 @@ export default function AdminGuard({ children }: AdminGuardProps) {
 
   return <>{children}</>
 }
+

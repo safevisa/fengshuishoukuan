@@ -144,3 +144,4 @@ echo "📝 查看日志: docker-compose -f docker-compose.prod.yml logs -f"
 echo ""
 echo "🔐 数据库密码: $DB_PASSWORD"
 echo "💾 请妥善保存数据库密码！"
+

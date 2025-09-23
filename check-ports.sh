@@ -53,3 +53,4 @@ systemctl status docker --no-pager -l 2>/dev/null | head -5 || echo "❌ Docker�
 
 echo ""
 echo "🎯 端口检查完成！"
+

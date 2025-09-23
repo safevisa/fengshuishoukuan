@@ -42,3 +42,4 @@ echo "👤 用户工作台: https://jinshiying.com/dashboard"
 
 # 显示日志
 echo "📋 查看日志: docker-compose logs -f"
+

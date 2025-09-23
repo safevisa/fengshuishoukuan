@@ -403,3 +403,4 @@ echo "内存: $(free -h | grep '^Mem:' | awk '{print $2}')"
 echo "磁盘: $(df -h / | tail -1 | awk '{print $2}')"
 echo
 success "部署脚本执行完成！"
+

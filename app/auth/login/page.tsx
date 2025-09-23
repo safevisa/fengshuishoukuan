@@ -49,10 +49,24 @@ export default function LoginPage() {
     setErrors({})
 
     try {
-      const result = await authService.login(email, password)
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password
+        })
+      })
+
+      const result = await response.json()
       
       if (result.success) {
-        // 会话管理已由authService处理
+        // 存储用户信息到localStorage
+        localStorage.setItem('user', JSON.stringify(result.user))
+        localStorage.setItem('isLoggedIn', 'true')
+        
         alert(result.message)
         // Redirect to dashboard
         window.location.href = "/dashboard"
@@ -60,6 +74,7 @@ export default function LoginPage() {
         setErrors({ general: result.message })
       }
     } catch (error) {
+      console.error('Login error:', error)
       setErrors({ general: "登入過程中發生錯誤，請重試" })
     } finally {
       setIsLoading(false)
