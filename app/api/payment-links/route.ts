@@ -5,7 +5,7 @@ import crypto from 'crypto';
 // 街口支付配置
 const JKOPAY_CONFIG = {
   merNo: '1888',
-  terNo: '88816',
+  terNo: '888506',
   secretKey: 'fe5b2c5ea084426bb1f6269acbac902f',
   gatewayUrl: 'https://gateway.suntone.com/payment/api/gotoPayment',
   returnUrl: 'https://jinshiying.com/payment/return',
@@ -30,62 +30,9 @@ function generateJkopayHash(params: Record<string, string>): string {
 
 // 生成街口支付链接
 function generateJkopayUrl(paymentLink: any): string {
-  const orderNo = paymentLink.id;
-  const amount = Math.round(paymentLink.amount * 100).toString();
-  
-  const params = {
-    merNo: JKOPAY_CONFIG.merNo,
-    terNo: JKOPAY_CONFIG.terNo,
-    CharacterSet: 'UTF8',
-    transType: 'sales',
-    transModel: 'M',
-    getPayLink: 'N',
-    apiType: '1',
-    amount: amount,
-    currencyCode: 'TWD',
-    orderNo: orderNo,
-    merremark: paymentLink.description || '收款链接',
-    returnURL: JKOPAY_CONFIG.returnUrl,
-    merMgrURL: 'jinshiying.com',
-    merNotifyURL: JKOPAY_CONFIG.notifyUrl,
-    webInfo: 'userAgent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    language: 'zh_TW',
-    cardCountry: 'TW',
-    cardState: 'Taipei',
-    cardCity: 'Taipei',
-    cardAddress: '台北市信义区信义路五段7号',
-    cardZipCode: '110',
-    payIP: '127.0.0.1',
-    cardFullName: 'Test.User',
-    cardFullPhone: '0912345678',
-    grCountry: 'TW',
-    grState: 'Taipei',
-    grCity: 'Taipei',
-    grAddress: '台北市信义区信义路五段7号',
-    grZipCode: '110',
-    grEmail: 'test@example.com',
-    grphoneNumber: '0912345678',
-    grPerName: 'Test.User',
-    goodsString: JSON.stringify({
-      goodsInfo: [{
-        goodsID: paymentLink.id,
-        goodsName: paymentLink.description || '商品',
-        quantity: '1',
-        goodsPrice: amount
-      }]
-    }),
-    cardType: 'jkopay'
-  };
-
-  const hashcode = generateJkopayHash(params);
-  
-  const formData = new URLSearchParams();
-  Object.keys(params).forEach(key => {
-    formData.append(key, (params as any)[key]);
-  });
-  formData.append('hashcode', hashcode);
-
-  return `${JKOPAY_CONFIG.gatewayUrl}?${formData.toString()}`;
+  // 街口支付需要POST请求，不能直接生成GET URL
+  // 返回一个简化的支付页面URL，实际支付通过POST请求处理
+  return `https://jinshiying.com/pay/${paymentLink.id}`;
 }
 
 export async function GET(request: NextRequest) {

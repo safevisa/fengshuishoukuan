@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { productionDB } from '@/lib/production-database';
+import { mysqlDB } from '@/lib/mysql-database';
 
 export async function GET(request: NextRequest) {
   try {
     console.log('🔄 [数据同步检查] 开始检查用户端和管理端数据同步状态...');
     
     // 获取所有数据
-    const users = await productionDB.getAllUsers();
-    const orders = await productionDB.getAllOrders();
-    const payments = await productionDB.getAllPayments();
-    const paymentLinks = await productionDB.getAllPaymentLinks();
+    const users = await mysqlDB.getAllUsers();
+    const orders = await mysqlDB.getAllOrders();
+    const payments = await mysqlDB.getAllPayments();
+    const paymentLinks = await mysqlDB.getAllPaymentLinks();
     
     // 检查数据一致性
     const syncChecks = {

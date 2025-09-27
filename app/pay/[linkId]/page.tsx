@@ -2,12 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, CreditCard, User, Mail, Phone, DollarSign } from 'lucide-react'
+import { Loader2, CreditCard, AlertCircle } from 'lucide-react'
 
 export const viewport = {
   width: 'device-width',
@@ -62,6 +61,7 @@ export default function PaymentPage() {
     setError('')
     
     try {
+      // 调用街口支付API
       const response = await fetch('/api/jkopay/create-payment', {
         method: 'POST',
         headers: {
@@ -79,7 +79,7 @@ export default function PaymentPage() {
       
       if (data.success && data.data.paymentUrl) {
         setRedirecting(true)
-        // 重定向到支付页面
+        // 重定向到街口支付页面
         window.location.href = data.data.paymentUrl
       } else {
         setError(data.message || '支付创建失败')
@@ -110,9 +110,10 @@ export default function PaymentPage() {
             <CardTitle className="text-center text-red-600">支付失败</CardTitle>
           </CardHeader>
           <CardContent>
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
+            <div className="text-center">
+              <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+              <p className="text-gray-600">{error}</p>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -122,114 +123,92 @@ export default function PaymentPage() {
   if (redirecting) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-amber-50 to-orange-50 flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle className="text-center text-amber-600">正在跳转支付...</CardTitle>
-          </CardHeader>
-          <CardContent className="text-center">
-            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-amber-600" />
-            <p className="text-gray-600">请稍候，正在跳转到支付页面</p>
-          </CardContent>
-        </Card>
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-amber-600" />
+          <p className="text-gray-600">正在跳转到支付页面...</p>
+        </div>
       </div>
     )
   }
   
   return (
-    <div className="min-h-screen bg-gradient-to-b from-amber-50 to-orange-50 p-6">
-      <div className="max-w-md mx-auto">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold text-amber-800 text-center">
-              支付页面
-            </CardTitle>
-            <CardDescription className="text-center">
-              请填写信息并完成支付
-            </CardDescription>
+    <div className="min-h-screen bg-gradient-to-b from-amber-50 to-orange-50">
+      <div className="max-w-md mx-auto py-12 px-4">
+        <Card className="border-amber-200 shadow-lg">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 p-3 bg-amber-100 rounded-full w-fit">
+              <CreditCard className="h-8 w-8 text-amber-600" />
+            </div>
+            <CardTitle className="text-2xl font-bold text-amber-800">街口支付</CardTitle>
+            <p className="text-amber-600">请填写信息完成支付</p>
           </CardHeader>
+          
           <CardContent className="space-y-6">
-            {/* 支付信息 */}
-            <div className="bg-amber-50 p-4 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600">支付金额</span>
-                <span className="text-2xl font-bold text-amber-800">
-                  ¥{paymentLink?.amount || 0}
-                </span>
+            {paymentLink && (
+              <div className="bg-amber-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-amber-800 mb-2">{paymentLink.description}</h3>
+                <p className="text-2xl font-bold text-amber-600">¥{paymentLink.amount}</p>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">商品描述</span>
-                <span className="text-sm font-medium">{paymentLink?.description || ''}</span>
+            )}
+            
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="customerName" className="text-amber-700">姓名</Label>
+                <Input
+                  id="customerName"
+                  type="text"
+                  placeholder="请输入您的姓名"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  className="border-amber-300 focus:border-amber-500"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="customerEmail" className="text-amber-700">邮箱</Label>
+                <Input
+                  id="customerEmail"
+                  type="email"
+                  placeholder="请输入您的邮箱"
+                  value={customerEmail}
+                  onChange={(e) => setCustomerEmail(e.target.value)}
+                  className="border-amber-300 focus:border-amber-500"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="customerPhone" className="text-amber-700">电话</Label>
+                <Input
+                  id="customerPhone"
+                  type="tel"
+                  placeholder="请输入您的电话"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  className="border-amber-300 focus:border-amber-500"
+                />
               </div>
             </div>
             
             {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-red-600 text-sm">{error}</p>
+              </div>
             )}
             
-            {/* 客户信息表单 */}
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="customerName" className="flex items-center">
-                  <User className="h-4 w-4 mr-2" />
-                  客户姓名
-                </Label>
-                <Input
-                  id="customerName"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="请输入客户姓名"
-                  required
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="customerEmail" className="flex items-center">
-                  <Mail className="h-4 w-4 mr-2" />
-                  邮箱地址
-                </Label>
-                <Input
-                  id="customerEmail"
-                  type="email"
-                  value={customerEmail}
-                  onChange={(e) => setCustomerEmail(e.target.value)}
-                  placeholder="请输入邮箱地址"
-                  required
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="customerPhone" className="flex items-center">
-                  <Phone className="h-4 w-4 mr-2" />
-                  手机号码
-                </Label>
-                <Input
-                  id="customerPhone"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="请输入手机号码"
-                  required
-                />
-              </div>
-            </div>
-            
-            {/* 支付按钮 */}
-            <Button
+            <Button 
               onClick={handlePayment}
-              disabled={processing || !customerName || !customerEmail || !customerPhone}
+              disabled={processing}
               className="w-full bg-amber-600 hover:bg-amber-700 text-white"
-              size="lg"
             >
               {processing ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   处理中...
                 </>
               ) : (
                 <>
-                  <CreditCard className="mr-2 h-4 w-4" />
-                  立即支付 ¥{paymentLink?.amount || 0}
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  立即支付
                 </>
               )}
             </Button>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { productionDB } from '@/lib/production-database';
+import { mysqlDB } from '@/lib/mysql-database';
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     
     // 检查用户API
     try {
-      const users = await productionDB.getAllUsers();
+      const users = await mysqlDB.getAllUsers();
       apiChecks.users = { status: 'success', count: users.length, error: null };
       console.log('✅ 用户API正常，数量:', users.length);
     } catch (error) {
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     
     // 检查订单API
     try {
-      const orders = await productionDB.getAllOrders();
+      const orders = await mysqlDB.getAllOrders();
       apiChecks.orders = { status: 'success', count: orders.length, error: null };
       console.log('✅ 订单API正常，数量:', orders.length);
     } catch (error) {
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     
     // 检查支付API
     try {
-      const payments = await productionDB.getAllPayments();
+      const payments = await mysqlDB.getAllPayments();
       apiChecks.payments = { status: 'success', count: payments.length, error: null };
       console.log('✅ 支付API正常，数量:', payments.length);
     } catch (error) {
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     
     // 检查收款链接API
     try {
-      const paymentLinks = await productionDB.getAllPaymentLinks();
+      const paymentLinks = await mysqlDB.getAllPaymentLinks();
       apiChecks.paymentLinks = { status: 'success', count: paymentLinks.length, error: null };
       console.log('✅ 收款链接API正常，数量:', paymentLinks.length);
     } catch (error) {
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
     
     // 检查提现API
     try {
-      const withdrawals = await productionDB.getAllWithdrawals();
+      const withdrawals = await mysqlDB.getAllWithdrawals();
       apiChecks.withdrawals = { status: 'success', count: withdrawals.length, error: null };
       console.log('✅ 提现API正常，数量:', withdrawals.length);
     } catch (error) {
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
     
     // 检查财务报表API
     try {
-      const financialReport = await productionDB.generateFinancialReport();
+      const financialReport = await mysqlDB.generateFinancialReport();
       apiChecks.financialReport = { status: 'success', data: financialReport, error: null };
       console.log('✅ 财务报表API正常');
     } catch (error) {
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     
     // 检查对账报告API
     try {
-      const reconciliationReport = await productionDB.generateReconciliationReport();
+      const reconciliationReport = await mysqlDB.generateReconciliationReport();
       apiChecks.reconciliationReport = { status: 'success', data: reconciliationReport, error: null };
       console.log('✅ 对账报告API正常');
     } catch (error) {

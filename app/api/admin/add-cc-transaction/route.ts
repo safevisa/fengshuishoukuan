@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { productionDB } from '@/lib/production-database';
+import { mysqlDB } from '@/lib/mysql-database';
 
 export async function POST(request: NextRequest) {
   try {
     console.log('💰 [添加CC交易] 开始添加用户cc的102元交易到服务器数据库...');
     
     // 查找用户cc
-    let ccUser = await productionDB.getUserByEmail('cc@jinshiying.com');
+    let ccUser = await mysqlDB.getUserByEmail('cc@jinshiying.com');
     if (!ccUser) {
       // 如果用户不存在，创建用户cc
-      ccUser = await productionDB.addUser({
+      ccUser = await mysqlDB.addUser({
         email: 'cc@jinshiying.com',
         name: 'cc',
         password: 'ccjinshiying',
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
     
     // 创建收款链接
-    const paymentLink = await productionDB.addPaymentLink({
+    const paymentLink = await mysqlDB.addPaymentLink({
       id: 'link_1758636847941_dp942dz7v',
       userId: ccUser.id,
       amount: 102,
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     console.log('✅ 创建收款链接:', paymentLink.id);
     
     // 创建订单
-    const order = await productionDB.addOrder({
+    const order = await mysqlDB.addOrder({
       userId: ccUser.id,
       amount: 102,
       description: '测试',
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     console.log('✅ 创建订单:', order.id);
     
     // 创建支付记录
-    const payment = await productionDB.addPayment({
+    const payment = await mysqlDB.addPayment({
       orderId: order.id,
       amount: 102,
       status: 'completed',
@@ -62,10 +62,10 @@ export async function POST(request: NextRequest) {
     console.log('✅ 创建支付记录:', payment.id);
     
     // 获取更新后的数据统计
-    const users = await productionDB.getAllUsers();
-    const orders = await productionDB.getAllOrders();
-    const payments = await productionDB.getAllPayments();
-    const paymentLinks = await productionDB.getAllPaymentLinks();
+    const users = await mysqlDB.getAllUsers();
+    const orders = await mysqlDB.getAllOrders();
+    const payments = await mysqlDB.getAllPayments();
+    const paymentLinks = await mysqlDB.getAllPaymentLinks();
     
     console.log('📊 [添加CC交易] 服务器数据库统计更新:');
     console.log('  用户数量:', users.length);
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
     console.log('📊 [查询CC交易] 查询用户cc的交易数据...');
     
     // 查找用户cc
-    const ccUser = await productionDB.getUserByEmail('cc@jinshiying.com');
+    const ccUser = await mysqlDB.getUserByEmail('cc@jinshiying.com');
     if (!ccUser) {
       return NextResponse.json({
         success: false,
@@ -115,9 +115,9 @@ export async function GET(request: NextRequest) {
     }
     
     // 获取用户cc的所有数据
-    const orders = await productionDB.getAllOrders();
-    const payments = await productionDB.getAllPayments();
-    const paymentLinks = await productionDB.getAllPaymentLinks();
+    const orders = await mysqlDB.getAllOrders();
+    const payments = await mysqlDB.getAllPayments();
+    const paymentLinks = await mysqlDB.getAllPaymentLinks();
     
     const ccOrders = orders.filter(order => order.userId === ccUser.id);
     const ccPayments = payments.filter(payment => 

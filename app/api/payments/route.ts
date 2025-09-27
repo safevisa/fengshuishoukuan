@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { productionDB } from '@/lib/production-database';
+import { mysqlDB } from '@/lib/mysql-database';
 
 export async function GET(request: NextRequest) {
   try {
-    const payments = await productionDB.getAllPayments();
+    const payments = await mysqlDB.getAllPayments();
     return NextResponse.json({
       success: true,
       payments: payments
