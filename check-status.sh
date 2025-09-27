@@ -47,3 +47,4 @@ free -h
 echo ""
 echo "🎯 状态检查完成！"
 
+

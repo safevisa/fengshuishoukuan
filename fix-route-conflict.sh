@@ -262,3 +262,4 @@ echo "📊 检查应用状态..."
 systemctl status fengshui-app --no-pager
 
 echo "✅ 路由冲突修复完成！"
+

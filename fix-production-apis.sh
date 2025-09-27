@@ -307,3 +307,4 @@ echo "📝 请测试以下功能："
 echo "1. 访问 https://jinshiying.com/admin"
 echo "2. 创建新用户"
 echo "3. 使用创建的账号登录 https://jinshiying.com/auth/login"
+

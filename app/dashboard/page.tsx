@@ -5,695 +5,432 @@ import UserGuard from "@/components/user-guard"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { 
   DollarSign, 
   ShoppingCart, 
-  CreditCard, 
-  TrendingUp, 
+  Link as LinkIcon,
+  RefreshCw,
+  AlertCircle,
   Plus,
-  Copy,
-  Eye,
-  Download,
-  Settings,
-  Wallet,
-  BarChart3
+  Share,
+  Trash2
 } from "lucide-react"
-import { PaymentLink, Order, Withdrawal, User } from "@/lib/types"
-import { db } from "@/lib/database"
-import { jkopayService } from "@/lib/jkopay-api"
-import { paymentService } from "@/lib/payment"
+
+interface PaymentStats {
+  totalStats: {
+    totalUsers: number
+    totalOrders: number
+    totalPayments: number
+    totalPaymentLinks: number
+    totalAmount: number
+    successPayments: number
+    successAmount: number
+    successRate: string
+  }
+  userStats: Array<{
+    userId: string
+    userName: string
+    userEmail: string
+    totalOrders: number
+    totalPayments: number
+    successPayments: number
+    totalAmount: number
+    successAmount: number
+    paymentLinks: number
+    successRate: string
+  }>
+}
+
+interface PaymentLink {
+  id: string
+  userId: string
+  amount: number
+  description: string
+  status: string
+  paymentUrl: string
+  paymentMethod: string
+  transactionId?: string
+  createdAt: string
+  updatedAt: string
+}
 
 export default function UserDashboard() {
-  const [user, setUser] = useState<User | null>(null)
+  const [stats, setStats] = useState<PaymentStats | null>(null)
   const [paymentLinks, setPaymentLinks] = useState<PaymentLink[]>([])
-  const [orders, setOrders] = useState<Order[]>([])
-  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
-  const [isCreateLinkOpen, setIsCreateLinkOpen] = useState(false)
-  const [isWithdrawOpen, setIsWithdrawOpen] = useState(false)
-  const [newLink, setNewLink] = useState({
-    title: "",
-    description: "",
-    amount: 0,
-    currency: "TWD", // 固定为台币
-    expiresAt: "",
-    maxUses: ""
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [createLoading, setCreateLoading] = useState(false)
+  const [createForm, setCreateForm] = useState({
+    amount: '',
+    description: ''
   })
-  const [withdrawalData, setWithdrawalData] = useState({
-    amount: 0,
-    method: "bank",
-    accountInfo: {
-      bankName: "",
-      accountNumber: "",
-      accountName: "",
-      phone: ""
+  const [copiedLink, setCopiedLink] = useState<string | null>(null)
+
+  const fetchData = async () => {
+    try {
+      setLoading(true)
+      setError('')
+
+      // 获取当前用户信息
+      const userData = localStorage.getItem('user')
+      if (!userData) {
+        setError('请先登录')
+        return
+      }
+      
+      const user = JSON.parse(userData)
+      console.log(' [前端] 获取数据，用户:', user)
+
+      // 获取支付统计
+      const statsResponse = await fetch('/api/payment-stats')
+      const statsData = await statsResponse.json()
+
+      if (statsData.success) {
+        setStats(statsData.data)
+      } else {
+        throw new Error(statsData.message || '获取统计数据失败')
+      }
+
+      // 获取当前用户的支付链接
+      console.log(' [前端] 请求支付链接，用户ID:', user.id)
+      const linksResponse = await fetch(`/api/payment-links?userId=${user.id}`)
+      const linksData = await linksResponse.json()
+
+      console.log(' [前端] 支付链接响应:', linksData)
+
+      if (Array.isArray(linksData)) {
+        setPaymentLinks(linksData)
+      } else if (linksData.success === false) {
+        throw new Error(linksData.message || '获取支付链接失败')
+      } else {
+        // 如果返回的是包装对象，提取data字段
+        const actualLinks = linksData.data || linksData
+        if (Array.isArray(actualLinks)) {
+          setPaymentLinks(actualLinks)
+        } else {
+          throw new Error('支付链接数据格式错误')
+        }
+      }
+
+    } catch (err) {
+      console.error('获取数据失败:', err)
+      setError(err instanceof Error ? err.message : '获取数据失败')
+    } finally {
+      setLoading(false)
     }
-  })
+  }
 
   useEffect(() => {
-    // 从localStorage获取当前登录用户
-    const loadUserData = () => {
-      const currentUserEmail = localStorage.getItem("current_user_email")
-      const currentUserData = localStorage.getItem("current_user")
-      
-      if (currentUserEmail && currentUserData) {
-        try {
-          const userData = JSON.parse(currentUserData)
-          // 直接使用localStorage中的用户数据
-          setUser({
-            id: userData.id || Date.now().toString(),
-            name: userData.name || "",
-            email: userData.email || "",
-            phone: userData.phone || "",
-            role: userData.role || 'user',
-            userType: userData.userType || 'registered',
-            status: 'active',
-            createdAt: userData.createdAt ? new Date(userData.createdAt) : new Date(),
-            updatedAt: new Date(),
-            balance: 0,
-            totalEarnings: 0,
-            totalWithdrawals: 0
-          })
-          
-          // 初始化一些模拟数据
-          setPaymentLinks([])
-          setOrders([])
-          setWithdrawals([])
-        } catch (error) {
-          console.error("Failed to load user data:", error)
-        }
-      }
-    }
-
-    loadUserData()
+    fetchData()
   }, [])
 
-  const handleCreatePaymentLink = async () => {
-    if (!user || !newLink.title || !newLink.amount) return
+  const handleCreateLink = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!createForm.amount || !createForm.description) {
+      alert('请填写金额和描述')
+      return
+    }
+
+    setCreateLoading(true)
+    try {
+      // 获取当前用户信息
+      const userData = localStorage.getItem('user')
+      if (!userData) {
+        alert('请先登录')
+        return
+      }
+      const user = JSON.parse(userData)
+      
+      // 确保使用真实的用户ID
+      if (!user.id) {
+        alert('用户信息错误，请重新登录')
+        return
+      }
+
+      console.log(' [前端] 使用用户ID:', user.id);
+
+      const response = await fetch('/api/payment-links', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: parseFloat(createForm.amount),
+          description: createForm.description,
+          userId: user.id // 使用真实的用户ID
+        }),
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        alert('收款链接创建成功！')
+        setCreateForm({ amount: '', description: '' })
+        fetchData() // 重新获取数据
+      } else {
+        alert(data.message || '创建失败')
+      }
+    } catch (err) {
+      alert('创建失败，请重试')
+    } finally {
+      setCreateLoading(false)
+    }
+  }
+
+  const handleDeleteLink = async (linkId: string) => {
+    if (!confirm('确定要删除这个收款链接吗？')) {
+      return
+    }
 
     try {
-      // 创建支付链接数据
-      const linkData = {
-        userId: user.id,
-        title: newLink.title,
-        description: newLink.description,
-        amount: newLink.amount,
-        currency: newLink.currency,
-        isActive: true,
-        expiresAt: newLink.expiresAt ? new Date(newLink.expiresAt) : undefined,
-        maxUses: newLink.maxUses ? parseInt(newLink.maxUses) : undefined
-      }
-
-      // 测试街口支付API连接
-      console.log('🧪 测试街口支付API连接...')
-      const connectionTest = await jkopayService.testConnection()
-      console.log('API连接测试结果:', connectionTest)
-
-      if (!connectionTest.success) {
-        alert(`街口支付API连接失败: ${connectionTest.message}\n\n请检查网络连接和API配置`)
-        return
-      }
-
-      // 创建街口支付订单
-      const paymentRequest = {
-        orderId: `link-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        amount: Math.round(newLink.amount), // 街口支付要求台币整数（元为单位）
-        description: newLink.description || newLink.title,
-        customerInfo: {
-          name: user.name,
-          email: user.email,
-          phone: user.phone
-        }
-      }
-
-      const paymentResponse = await jkopayService.createPayment(paymentRequest)
-      console.log('街口支付订单创建结果:', paymentResponse)
-      console.log('paymentResponse.success:', paymentResponse.success)
-      console.log('paymentResponse.error:', paymentResponse.error)
-
-      if (!paymentResponse.success) {
-        console.error('支付创建失败，错误信息:', paymentResponse.error)
-        alert(`街口支付订单创建失败: ${paymentResponse.error}\n\n请检查API参数和签名`)
-        return
-      }
-
-      // 保存支付链接到数据库（使用街口支付返回的订单ID）
-      const linkDataWithOrderId = {
-        ...linkData,
-        // 可以在这里添加街口支付返回的订单ID等信息
-      }
-      
-      const createdLink = db.createPaymentLink(linkDataWithOrderId)
-      console.log('💾 支付链接已保存到数据库:', createdLink)
-
-      // 更新本地状态
-      setPaymentLinks(prev => [...prev, createdLink])
-      
-      // 显示成功消息
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://jinshiying.com'
-      alert(`收款链接创建成功！\n\n链接ID: ${createdLink.id}\n街口支付订单ID: ${paymentResponse.transactionId}\n支付URL: ${paymentResponse.paymentUrl}\n\n链接地址: ${baseUrl}/pay/${createdLink.id}`)
-      
-      // 重置表单
-      setNewLink({
-        title: "",
-        description: "",
-        amount: 0,
-        currency: "TWD",
-        expiresAt: "",
-        maxUses: ""
+      const response = await fetch(`/api/payment-links/${linkId}`, {
+        method: 'DELETE',
       })
-      setIsCreateLinkOpen(false)
 
-    } catch (error) {
-      console.error('创建收款链接时发生错误:', error)
-      console.error('错误详情:', error instanceof Error ? error.message : String(error))
-      console.error('错误堆栈:', error instanceof Error ? error.stack : 'No stack trace')
-      alert(`创建收款链接时发生错误: ${error instanceof Error ? error.message : String(error)}\n\n请检查控制台获取详细信息`)
-    }
-  }
-
-  const handleWithdraw = async () => {
-    if (!user || !withdrawalData.amount) return
-
-    const fee = db.calculateFee(withdrawalData.amount, 'fee-002')
-    const netAmount = withdrawalData.amount - fee
-
-    const withdrawal: Withdrawal = {
-      id: `withdrawal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      userId: user.id,
-      amount: withdrawalData.amount,
-      fee,
-      netAmount,
-      method: withdrawalData.method as 'bank' | 'alipay' | 'wechat',
-      accountInfo: withdrawalData.accountInfo,
-      status: 'pending',
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
-
-    const createdWithdrawal = db.createWithdrawal(withdrawal)
-    setWithdrawals(prev => [...prev, createdWithdrawal])
-    setWithdrawalData({
-      amount: 0,
-      method: "bank",
-      accountInfo: {
-        bankName: "",
-        accountNumber: "",
-        accountName: "",
-        phone: ""
+      if (response.ok) {
+        alert('收款链接删除成功！')
+        fetchData() // 重新获取数据
+      } else {
+        alert('删除失败')
       }
-    })
-    setIsWithdrawOpen(false)
-  }
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text)
-    // 这里可以添加一个toast通知
-  }
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('zh-TW', {
-      style: 'currency',
-      currency: 'TWD'
-    }).format(amount)
-  }
-
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(new Date(date))
-  }
-
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      active: { variant: "default" as const, label: "活跃" },
-      inactive: { variant: "secondary" as const, label: "非活跃" },
-      pending: { variant: "secondary" as const, label: "待处理" },
-      approved: { variant: "default" as const, label: "已批准" },
-      rejected: { variant: "destructive" as const, label: "已拒绝" },
-      completed: { variant: "default" as const, label: "已完成" }
+    } catch (err) {
+      alert('删除失败，请重试')
     }
-    
-    const config = statusConfig[status as keyof typeof statusConfig] || { variant: "secondary" as const, label: status }
-    return <Badge variant={config.variant}>{config.label}</Badge>
   }
 
-  if (!user) {
-    return <div className="min-h-screen flex items-center justify-center">加载中...</div>
+  const handleShareLink = async (link: PaymentLink) => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: link.description,
+          text: `收款链接：${link.description}`,
+          url: link.paymentUrl || `https://jinshiying.com/pay/${link.id}`
+        })
+      } catch (err) {
+        console.log('分享取消')
+      }
+    } else {
+      // 备用分享方法 - 复制链接到剪贴板
+      const shareUrl = link.paymentUrl || `https://jinshiying.com/pay/${link.id}`
+      try {
+        await navigator.clipboard.writeText(shareUrl)
+        setCopiedLink(link.id)
+        setTimeout(() => setCopiedLink(null), 2000)
+        alert('链接已复制到剪贴板')
+      } catch (err) {
+        // 如果复制失败，使用备用方法
+        const textArea = document.createElement('textarea')
+        textArea.value = shareUrl
+        document.body.appendChild(textArea)
+        textArea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textArea)
+        setCopiedLink(link.id)
+        setTimeout(() => setCopiedLink(null), 2000)
+        alert('链接已复制到剪贴板')
+      }
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="h-12 w-12 text-blue-500 mx-auto mb-4 animate-spin" />
+          <h2 className="text-xl font-semibold mb-2">加载中...</h2>
+          <p className="text-gray-600">正在获取数据</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold mb-2">加载失败</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <Button onClick={fetchData} variant="outline">
+            重试
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <UserGuard>
+    <UserGuard requiredRole="dashboard_user">
       <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-bold text-gray-900">我的工作台</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-sm text-gray-500">账户余额</p>
-                <p className="text-2xl font-bold text-green-600">{formatCurrency(user.balance)}</p>
-              </div>
-              <Button variant="outline" size="sm">
-                <Settings className="h-4 w-4 mr-2" />
-                设置
-              </Button>
-            </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* 页面标题 */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900">用户工作台</h1>
+            <p className="text-gray-600 mt-2">查看您的支付统计和收款链接</p>
           </div>
-        </div>
-      </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* 统计卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">账户余额</CardTitle>
-              <Wallet className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(user.balance)}</div>
-              <p className="text-xs text-muted-foreground">
-                总收益: {formatCurrency(user.totalEarnings)}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">收款链接</CardTitle>
-              <CreditCard className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{paymentLinks.length}</div>
-              <p className="text-xs text-muted-foreground">
-                活跃链接: {paymentLinks.filter(l => l.isActive).length}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">总订单</CardTitle>
-              <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{orders.length}</div>
-              <p className="text-xs text-muted-foreground">
-                本月订单: {orders.filter(o => {
-                  const now = new Date()
-                  const orderDate = new Date(o.createdAt)
-                  return orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear()
-                }).length}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">提现记录</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{withdrawals.length}</div>
-              <p className="text-xs text-muted-foreground">
-                总提现: {formatCurrency(user.totalWithdrawals)}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* 主要内容 */}
-        <Tabs defaultValue="links" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="links">收款链接</TabsTrigger>
-            <TabsTrigger value="orders">订单管理</TabsTrigger>
-            <TabsTrigger value="withdrawals">提现管理</TabsTrigger>
-            <TabsTrigger value="analytics">数据分析</TabsTrigger>
-          </TabsList>
-
-          {/* 收款链接 */}
-          <TabsContent value="links" className="space-y-6">
+          {/* 统计卡片 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>收款链接管理</CardTitle>
-                    <CardDescription>创建和管理您的收款链接</CardDescription>
-                  </div>
-                  <Dialog open={isCreateLinkOpen} onOpenChange={setIsCreateLinkOpen}>
-                    <DialogTrigger asChild>
-                      <Button>
-                        <Plus className="h-4 w-4 mr-2" />
-                        创建收款链接
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>创建收款链接</DialogTitle>
-                        <DialogDescription>
-                          创建一个新的收款链接，客户可以通过此链接向您付款
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div>
-                          <Label htmlFor="title">链接标题</Label>
-                          <Input
-                            id="title"
-                            value={newLink.title}
-                            onChange={(e) => setNewLink(prev => ({ ...prev, title: e.target.value }))}
-                            placeholder="请输入链接标题"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="description">描述</Label>
-                          <Textarea
-                            id="description"
-                            value={newLink.description}
-                            onChange={(e) => setNewLink(prev => ({ ...prev, description: e.target.value }))}
-                            placeholder="请输入链接描述（可选）"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="amount">金额</Label>
-                          <Input
-                            id="amount"
-                            type="number"
-                            value={newLink.amount}
-                            onChange={(e) => setNewLink(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
-                            placeholder="请输入金额"
-                          />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label htmlFor="currency">货币</Label>
-                            <Input
-                              id="currency"
-                              value="台币 (TWD)"
-                              disabled
-                              className="bg-gray-50"
-                            />
-                            <p className="text-xs text-muted-foreground mt-1">
-                              目前仅支持台币，使用街口支付
-                            </p>
-                          </div>
-                          <div>
-                            <Label htmlFor="maxUses">最大使用次数</Label>
-                            <Input
-                              id="maxUses"
-                              type="number"
-                              value={newLink.maxUses}
-                              onChange={(e) => setNewLink(prev => ({ ...prev, maxUses: e.target.value }))}
-                              placeholder="留空表示无限制"
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <Label htmlFor="expiresAt">过期时间</Label>
-                          <Input
-                            id="expiresAt"
-                            type="datetime-local"
-                            value={newLink.expiresAt}
-                            onChange={(e) => setNewLink(prev => ({ ...prev, expiresAt: e.target.value }))}
-                          />
-                        </div>
-                        <Button onClick={handleCreatePaymentLink} className="w-full">
-                          创建链接
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">总订单</CardTitle>
+                <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats?.totalStats.totalOrders || 0}</div>
+                <p className="text-xs text-muted-foreground">
+                  成功订单: {stats?.totalStats.successPayments || 0}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">总支付</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">¥{stats?.totalStats.successAmount || 0}</div>
+                <p className="text-xs text-muted-foreground">
+                  成功率: {stats?.totalStats.successRate || '0%'}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">收款链接</CardTitle>
+                <LinkIcon className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{paymentLinks.length}</div>
+                <p className="text-xs text-muted-foreground">
+                  活跃链接
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">总用户</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats?.totalStats.totalUsers || 0}</div>
+                <p className="text-xs text-muted-foreground">
+                  活跃用户
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* 收款链接管理 */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>收款链接</CardTitle>
+                  <CardDescription>您的所有收款链接</CardDescription>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>链接ID</TableHead>
-                      <TableHead>标题</TableHead>
-                      <TableHead>金额</TableHead>
-                      <TableHead>使用次数</TableHead>
-                      <TableHead>状态</TableHead>
-                      <TableHead>创建时间</TableHead>
-                      <TableHead>操作</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {paymentLinks.map((link) => (
-                      <TableRow key={link.id}>
-                        <TableCell className="font-medium">{link.id}</TableCell>
-                        <TableCell>{link.title}</TableCell>
-                        <TableCell>{formatCurrency(link.amount)}</TableCell>
-                        <TableCell>
-                          {link.usedCount}
-                          {link.maxUses && ` / ${link.maxUses}`}
-                        </TableCell>
-                        <TableCell>{getStatusBadge(link.isActive ? 'active' : 'inactive')}</TableCell>
-                        <TableCell>{formatDate(link.createdAt)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => copyToClipboard(`${window.location.origin}/pay/${link.id}`)}
-                            >
-                              <Copy className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* 订单管理 */}
-          <TabsContent value="orders" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>订单管理</CardTitle>
-                <CardDescription>查看和管理您的订单</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>订单ID</TableHead>
-                      <TableHead>金额</TableHead>
-                      <TableHead>状态</TableHead>
-                      <TableHead>支付方式</TableHead>
-                      <TableHead>创建时间</TableHead>
-                      <TableHead>操作</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {orders.map((order) => (
-                      <TableRow key={order.id}>
-                        <TableCell className="font-medium">{order.id}</TableCell>
-                        <TableCell>{formatCurrency(order.totalAmount)}</TableCell>
-                        <TableCell>{getStatusBadge(order.status)}</TableCell>
-                        <TableCell>{order.paymentMethod}</TableCell>
-                        <TableCell>{formatDate(order.createdAt)}</TableCell>
-                        <TableCell>
-                          <Button variant="ghost" size="sm">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* 提现管理 */}
-          <TabsContent value="withdrawals" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>提现管理</CardTitle>
-                    <CardDescription>申请提现和管理提现记录</CardDescription>
+                <Button onClick={() => document.getElementById('create-link-form')?.scrollIntoView()}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  创建收款链接
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {/* 创建新收款链接表单 */}
+              <div id="create-link-form" className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <h3 className="text-lg font-medium mb-4">创建新收款链接</h3>
+                <form onSubmit={handleCreateLink} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="amount">金额</Label>
+                      <Input
+                        id="amount"
+                        type="number"
+                        placeholder="请输入金额"
+                        value={createForm.amount}
+                        onChange={(e) => setCreateForm(prev => ({ ...prev, amount: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="description">描述</Label>
+                      <Input
+                        id="description"
+                        type="text"
+                        placeholder="请输入描述"
+                        value={createForm.description}
+                        onChange={(e) => setCreateForm(prev => ({ ...prev, description: e.target.value }))}
+                        required
+                      />
+                    </div>
                   </div>
-                  <Dialog open={isWithdrawOpen} onOpenChange={setIsWithdrawOpen}>
-                    <DialogTrigger asChild>
-                      <Button>
-                        <Plus className="h-4 w-4 mr-2" />
-                        申请提现
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>申请提现</DialogTitle>
-                        <DialogDescription>
-                          从您的账户余额中申请提现
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div>
-                          <Label htmlFor="amount">提现金额</Label>
-                          <Input
-                            id="amount"
-                            type="number"
-                            value={withdrawalData.amount}
-                            onChange={(e) => setWithdrawalData(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
-                            placeholder="请输入提现金额"
-                          />
-                          <p className="text-sm text-muted-foreground mt-1">
-                            手续费: {formatCurrency(db.calculateFee(withdrawalData.amount, 'fee-002'))}
+                  <div className="flex space-x-2">
+                    <Button type="submit" disabled={createLoading}>
+                      {createLoading ? '创建中...' : '创建链接'}
+                    </Button>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => setCreateForm({ amount: '', description: '' })}
+                    >
+                      取消
+                    </Button>
+                  </div>
+                </form>
+              </div>
+
+              {/* 收款链接列表 */}
+              {paymentLinks.length > 0 ? (
+                <div className="space-y-4">
+                  {paymentLinks.map((link) => (
+                    <div key={link.id} className="p-4 border rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-medium">{link.description}</h4>
+                          <p className="text-sm text-gray-500 mt-1">
+                            金额: ¥{link.amount} | 创建时间: {link.createdAt ? new Date(link.createdAt).toLocaleString() : '未知时间'}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1 break-all">
+                            链接: {link.paymentUrl || '链接生成中...'}
                           </p>
                         </div>
-                        <div>
-                          <Label htmlFor="method">提现方式</Label>
-                          <Select value={withdrawalData.method} onValueChange={(value) => setWithdrawalData(prev => ({ ...prev, method: value }))}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="bank">银行转账</SelectItem>
-                              <SelectItem value="alipay">支付宝</SelectItem>
-                              <SelectItem value="wechat">微信</SelectItem>
-                            </SelectContent>
-                          </Select>
+                        <div className="flex space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleShareLink(link)}
+                          >
+                            <Share className="h-4 w-4 mr-1" />
+                            {copiedLink === link.id ? '已复制' : '分享'}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteLink(link.id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
-                        {withdrawalData.method === 'bank' && (
-                          <>
-                            <div>
-                              <Label htmlFor="bankName">银行名称</Label>
-                              <Input
-                                id="bankName"
-                                value={withdrawalData.accountInfo.bankName}
-                                onChange={(e) => setWithdrawalData(prev => ({ 
-                                  ...prev, 
-                                  accountInfo: { ...prev.accountInfo, bankName: e.target.value }
-                                }))}
-                                placeholder="请输入银行名称"
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor="accountNumber">账户号码</Label>
-                              <Input
-                                id="accountNumber"
-                                value={withdrawalData.accountInfo.accountNumber}
-                                onChange={(e) => setWithdrawalData(prev => ({ 
-                                  ...prev, 
-                                  accountInfo: { ...prev.accountInfo, accountNumber: e.target.value }
-                                }))}
-                                placeholder="请输入账户号码"
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor="accountName">账户姓名</Label>
-                              <Input
-                                id="accountName"
-                                value={withdrawalData.accountInfo.accountName}
-                                onChange={(e) => setWithdrawalData(prev => ({ 
-                                  ...prev, 
-                                  accountInfo: { ...prev.accountInfo, accountName: e.target.value }
-                                }))}
-                                placeholder="请输入账户姓名"
-                              />
-                            </div>
-                          </>
-                        )}
-                        <Button onClick={handleWithdraw} className="w-full">
-                          提交申请
-                        </Button>
                       </div>
-                    </DialogContent>
-                  </Dialog>
+                    </div>
+                  ))}
                 </div>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>提现ID</TableHead>
-                      <TableHead>金额</TableHead>
-                      <TableHead>手续费</TableHead>
-                      <TableHead>实际到账</TableHead>
-                      <TableHead>状态</TableHead>
-                      <TableHead>申请时间</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {withdrawals.map((withdrawal) => (
-                      <TableRow key={withdrawal.id}>
-                        <TableCell className="font-medium">{withdrawal.id}</TableCell>
-                        <TableCell>{formatCurrency(withdrawal.amount)}</TableCell>
-                        <TableCell>{formatCurrency(withdrawal.fee)}</TableCell>
-                        <TableCell>{formatCurrency(withdrawal.netAmount)}</TableCell>
-                        <TableCell>{getStatusBadge(withdrawal.status)}</TableCell>
-                        <TableCell>{formatDate(withdrawal.createdAt)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* 数据分析 */}
-          <TabsContent value="analytics" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>数据分析</CardTitle>
-                <CardDescription>查看您的业务数据和趋势</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground">本月收入</p>
-                    <p className="text-2xl font-bold">
-                      {formatCurrency(orders.filter(o => {
-                        const now = new Date()
-                        const orderDate = new Date(o.createdAt)
-                        return orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear()
-                      }).reduce((sum, order) => sum + order.totalAmount, 0))}
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground">本月订单</p>
-                    <p className="text-2xl font-bold">
-                      {orders.filter(o => {
-                        const now = new Date()
-                        const orderDate = new Date(o.createdAt)
-                        return orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear()
-                      }).length}
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground">平均订单金额</p>
-                    <p className="text-2xl font-bold">
-                      {formatCurrency(orders.length > 0 ? orders.reduce((sum, order) => sum + order.totalAmount, 0) / orders.length : 0)}
-                    </p>
-                  </div>
+              ) : (
+                <div className="text-center py-8">
+                  <LinkIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">暂无收款链接</p>
+                  <p className="text-sm text-gray-400 mt-1">点击上方按钮创建您的第一个收款链接</p>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
-    </div>
     </UserGuard>
   )
 }

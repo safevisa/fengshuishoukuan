@@ -98,3 +98,4 @@ echo "主机记录: www"
 echo "记录值: $DOMAIN"
 echo "TTL: 600"
 
+

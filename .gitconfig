@@ -1,0 +1,14 @@
+[user]
+    name = Fengshui Ecommerce System
+    email = admin@jinshiying.com
+
+[core]
+    autocrlf = input
+    safecrlf = true
+
+[push]
+    default = simple
+
+[init]
+    defaultBranch = main
+

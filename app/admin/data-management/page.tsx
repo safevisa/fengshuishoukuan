@@ -104,6 +104,109 @@ export default function DataManagementPage() {
     }
   }
 
+  const handleAddCCTransaction = async () => {
+    setIsLoading(true)
+    try {
+      // 添加CC用户的102元交易数据
+      const ccTransactionData = {
+        user: {
+          id: 'user_cc',
+          email: 'cc@jinshiying.com',
+          name: 'cc',
+          password: 'ccjinshiying',
+          role: 'user'
+        },
+        paymentLink: {
+          id: 'link_1758636847941_dp942dz7v',
+          userId: 'user_cc',
+          amount: 102,
+          description: '测试',
+          status: 'completed',
+          paymentUrl: 'https://jinshiying.com/pay/link_1758636847941_dp942dz7v',
+          paymentMethod: 'jkopay'
+        },
+        order: {
+          id: 'order_cc_102',
+          userId: 'user_cc',
+          amount: 102,
+          description: '测试',
+          status: 'completed',
+          paymentLinkId: 'link_1758636847941_dp942dz7v',
+          paymentMethod: 'jkopay',
+          transactionId: 'JK20250924001',
+          completedAt: new Date('2025-09-24T14:32:00+08:00')
+        },
+        payment: {
+          id: 'payment_cc_102',
+          orderId: 'order_cc_102',
+          amount: 102,
+          status: 'completed',
+          paymentMethod: 'jkopay',
+          transactionId: 'JK20250924001',
+          currencyCode: 'TWD',
+          respCode: '00',
+          respMsg: '支付成功',
+          merNo: '1888',
+          terNo: '888506',
+          transType: 'sales'
+        }
+      }
+
+      // 保存到localStorage
+      const existingData = JSON.parse(localStorage.getItem('fengshui_data') || '{}')
+      
+      // 添加用户
+      if (!existingData.users) existingData.users = []
+      const existingUser = existingData.users.find((u: any) => u.id === 'user_cc')
+      if (!existingUser) {
+        existingData.users.push(ccTransactionData.user)
+      }
+
+      // 添加收款链接
+      if (!existingData.paymentLinks) existingData.paymentLinks = []
+      const existingLink = existingData.paymentLinks.find((l: any) => l.id === ccTransactionData.paymentLink.id)
+      if (!existingLink) {
+        existingData.paymentLinks.push({
+          ...ccTransactionData.paymentLink,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        })
+      }
+
+      // 添加订单
+      if (!existingData.orders) existingData.orders = []
+      const existingOrder = existingData.orders.find((o: any) => o.id === ccTransactionData.order.id)
+      if (!existingOrder) {
+        existingData.orders.push({
+          ...ccTransactionData.order,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        })
+      }
+
+      // 添加支付记录
+      if (!existingData.payments) existingData.payments = []
+      const existingPayment = existingData.payments.find((p: any) => p.id === ccTransactionData.payment.id)
+      if (!existingPayment) {
+        existingData.payments.push({
+          ...ccTransactionData.payment,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        })
+      }
+
+      // 保存数据
+      localStorage.setItem('fengshui_data', JSON.stringify(existingData))
+      
+      setMessage({ type: 'success', text: 'CC用户的102元交易已成功添加！' })
+      loadStats()
+    } catch (error) {
+      setMessage({ type: 'error', text: '添加交易失败，请重试。' })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes'
     const k = 1024
@@ -273,6 +376,26 @@ export default function DataManagementPage() {
                   >
                     <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
                     {isLoading ? '同步中...' : '同步数据'}
+                  </Button>
+                </div>
+
+                <Separator />
+
+                {/* 添加CC交易 */}
+                <div>
+                  <Label className="text-sm font-medium text-green-600">
+                    添加测试交易
+                  </Label>
+                  <p className="text-xs text-gray-500 mb-2">
+                    添加用户cc的102元成功交易数据
+                  </p>
+                  <Button 
+                    onClick={handleAddCCTransaction}
+                    disabled={isLoading}
+                    className="w-full bg-green-600 hover:bg-green-700"
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    {isLoading ? '添加中...' : '添加CC交易'}
                   </Button>
                 </div>
 

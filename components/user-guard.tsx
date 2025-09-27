@@ -7,9 +7,10 @@ import { User, Loader2 } from "lucide-react"
 
 interface UserGuardProps {
   children: React.ReactNode
+  requiredRole?: string
 }
 
-export default function UserGuard({ children }: UserGuardProps) {
+export default function UserGuard({ children, requiredRole = "dashboard_user" }: UserGuardProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const router = useRouter()
@@ -17,17 +18,19 @@ export default function UserGuard({ children }: UserGuardProps) {
   useEffect(() => {
     // 检查用户会话
     const checkAuth = () => {
-      const currentUserEmail = localStorage.getItem("current_user_email")
-      const currentUser = localStorage.getItem("current_user")
+      const userData = localStorage.getItem("user")
+      const isLoggedInFlag = localStorage.getItem("isLoggedIn")
       
-      if (currentUserEmail && currentUser) {
+      if (userData && isLoggedInFlag === "true") {
         try {
-          const userData = JSON.parse(currentUser)
-          // 检查用户类型，只有管理员创建的用户才能访问工作台
-          if (userData.userType === 'admin_created') {
+          const user = JSON.parse(userData)
+          console.log('🔍 [UserGuard] 检查用户:', user)
+          
+          // 检查用户角色
+          if (user.role === requiredRole || user.role === 'admin') {
             setIsLoggedIn(true)
           } else {
-            // 注册用户无权访问工作台
+            console.log('❌ [UserGuard] 用户角色不匹配:', user.role, '需要:', requiredRole)
             setIsLoggedIn(false)
             router.push("/")
           }
@@ -37,9 +40,10 @@ export default function UserGuard({ children }: UserGuardProps) {
           router.push("/auth/login")
         }
       } else {
+        console.log('❌ [UserGuard] 用户未登录或数据无效')
         // 清除无效的会话数据
-        localStorage.removeItem("current_user_email")
-        localStorage.removeItem("current_user")
+        localStorage.removeItem("user")
+        localStorage.removeItem("isLoggedIn")
         router.push("/auth/login")
       }
       setIsLoading(false)
@@ -49,7 +53,7 @@ export default function UserGuard({ children }: UserGuardProps) {
     const timer = setTimeout(checkAuth, 100)
     
     return () => clearTimeout(timer)
-  }, [router])
+  }, [router, requiredRole])
 
   if (isLoading) {
     return (

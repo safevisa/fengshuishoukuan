@@ -89,3 +89,4 @@ export function getUserFromRequest(req: NextRequest): AuthUser | null {
   return verifyToken(token)
 }
 
+

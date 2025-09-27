@@ -270,3 +270,4 @@ echo "  测试连接: curl -I https://$DOMAIN"
 echo "  查看Nginx日志: sudo tail -f /var/log/nginx/error.log"
 echo "  查看应用日志: docker-compose -f docker-compose.prod-fixed.yml logs app"
 
+
