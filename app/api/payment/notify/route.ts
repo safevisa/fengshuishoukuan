@@ -16,16 +16,14 @@ function verifyJkopaySignature(data: any): boolean {
     
     // 按照接口文档中的签名算法验证
     const signString = [
-      `EncryptionMode=SHA256`,
-      `CharacterSet=UTF8`,
-      `merNo=${signData.merNo || ''}`,
-      `terNo=${signData.terNo || ''}`,
-      `orderNo=${signData.orderNo || ''}`,
-      `currencyCode=${signData.currencyCode || ''}`,
       `amount=${signData.amount || ''}`,
+      `currencyCode=${signData.currencyCode || ''}`,
+      `merNo=${signData.merNo || ''}`,
+      `orderNo=${signData.orderNo || ''}`,
       `payIP=${signData.payIP || ''}`,
       `transType=${signData.transType || ''}`,
       `transModel=${signData.transModel || ''}`,
+      `terNo=${signData.terNo || ''}`,
       JKOPAY_CONFIG.secretKey
     ].join('&');
     

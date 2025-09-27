@@ -16,17 +16,19 @@ const JKOPAY_CONFIG = {
 function generateJkopayHash(params: Record<string, string>): string {
   // 按照接口文档中的签名示例：
   // EncryptionMode=SHA256&CharacterSet=UTF8&merNo=1888&terNo=88816&orderNo=109116361045&currencyCode=USD&amount=98.99&payIP=116.30.222.69&transType=sales&transModel=M&9e3870716b3e4e939dcc254bce0cec9a
+  
+  // 注意：文档中的示例是完整的签名字符串，但实际签名时应该只包含业务参数
+  // 根据响应中的签名说明：amount=98.99&currencyCode=USD&merNo=1888&orderNo=109116361045&respCode=01&respMsg=Get source URL fails&terNo=88816&tradeNo=BA1512281121473675&transType=sales&9e3870716b3e4e939dcc254bce0cec9a
+  
   const signString = [
-    `EncryptionMode=SHA256`,
-    `CharacterSet=UTF8`,
-    `merNo=${params.merNo}`,
-    `terNo=${params.terNo}`,
-    `orderNo=${params.orderNo}`,
-    `currencyCode=${params.currencyCode}`,
     `amount=${params.amount}`,
+    `currencyCode=${params.currencyCode}`,
+    `merNo=${params.merNo}`,
+    `orderNo=${params.orderNo}`,
     `payIP=${params.payIP}`,
     `transType=${params.transType}`,
     `transModel=${params.transModel}`,
+    `terNo=${params.terNo}`,
     JKOPAY_CONFIG.secretKey
   ].join('&');
   
@@ -77,7 +79,7 @@ export async function POST(request: NextRequest) {
       transModel: 'M',
       getPayLink: 'N',
       apiType: '1',
-      amount: Math.round(amount * 100).toString(), // 转换为分
+      amount: amount.toFixed(2), // 保持两位小数格式
       currencyCode: 'TWD',
       orderNo: orderNo,
       merremark: description,
@@ -107,7 +109,7 @@ export async function POST(request: NextRequest) {
           goodsID: linkId,
           goodsName: description,
           quantity: '1',
-          goodsPrice: Math.round(amount * 100).toString()
+          goodsPrice: amount.toFixed(2)
         }]
       }),
       cardType: 'jkopay'
