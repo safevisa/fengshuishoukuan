@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { productionDB } from '@/lib/production-database';
+import { mysqlDB } from '@/lib/mysql-database';
 
 export async function GET(
   request: NextRequest,
@@ -17,7 +17,7 @@ export async function GET(
       }, { status: 400 });
     }
     
-    const paymentLink = await productionDB.getPaymentLinkById(linkId);
+    const paymentLink = await mysqlDB.getPaymentLinkById(linkId);
     
     if (!paymentLink) {
       console.log('❌ [支付链接详情] 链接不存在:', linkId);

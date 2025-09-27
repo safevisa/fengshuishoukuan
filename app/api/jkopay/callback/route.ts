@@ -1,44 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mysqlDB } from '@/lib/mysql-database';
-import crypto from 'crypto';
-
-// 街口支付配置 - 使用正确的测试账号
-const JKOPAY_CONFIG = {
-  merNo: '1888',
-  terNo: '888506', // 使用测试账号的终端号
-  secretKey: 'fe5b2c5ea084426bb1f6269acbac902f',
-};
-
-// 验证街口支付回调签名 - 与创建支付API保持一致
-function verifyJkopaySignature(data: any): boolean {
-  try {
-    const { hashcode, ...signData } = data;
-    
-    // 按照接口文档中的签名算法验证
-    const signString = [
-      `amount=${signData.amount || ''}`,
-      `currencyCode=${signData.currencyCode || ''}`,
-      `merNo=${signData.merNo || ''}`,
-      `orderNo=${signData.orderNo || ''}`,
-      `payIP=${signData.payIP || ''}`,
-      `transType=${signData.transType || ''}`,
-      `transModel=${signData.transModel || ''}`,
-      `terNo=${signData.terNo || ''}`,
-      JKOPAY_CONFIG.secretKey
-    ].join('&');
-    
-    console.log('🔐 [街口支付回调] 验证签名字符串:', signString);
-    
-    const expectedSignature = crypto.createHash('sha256').update(signString).digest('hex');
-    console.log('🔐 [街口支付回调] 期望签名:', expectedSignature);
-    console.log('🔐 [街口支付回调] 接收签名:', hashcode);
-    
-    return hashcode === expectedSignature;
-  } catch (error) {
-    console.error('❌ [街口支付回调] 签名验证错误:', error);
-    return false;
-  }
-}
+import { jkoPayService } from '@/lib/jkopay';
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -73,7 +35,7 @@ export async function POST(request: NextRequest) {
     }
     
     // 验证签名
-    if (!verifyJkopaySignature(callbackData)) {
+    if (!jkoPayService.verifyCallbackSignature(callbackData)) {
       console.log('❌ [街口支付回调] 签名验证失败');
       return NextResponse.json({ success: false, message: '签名验证失败' }, { status: 400 });
     }
