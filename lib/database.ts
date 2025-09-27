@@ -439,5 +439,23 @@ class Database {
   }
 }
 
+// MySQL数据库连接
+import mysql from 'mysql2/promise';
+
+let connection: mysql.Connection | null = null;
+
+export async function getConnection(): Promise<mysql.Connection> {
+  if (!connection) {
+    connection = await mysql.createConnection({
+      host: process.env.DB_HOST || 'localhost',
+      user: process.env.DB_USER || 'root',
+      password: process.env.DB_PASSWORD || '',
+      database: process.env.DB_NAME || 'fengshui_ecommerce',
+      port: parseInt(process.env.DB_PORT || '3306'),
+    });
+  }
+  return connection;
+}
+
 // 导出单例实例
 export const db = new Database();

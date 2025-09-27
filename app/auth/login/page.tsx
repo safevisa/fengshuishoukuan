@@ -21,12 +21,44 @@ export default function LoginPage() {
     e.preventDefault()
     setIsLoading(true)
 
-    // Simulate login process
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        // 保存用户信息到localStorage
+        localStorage.setItem('user', JSON.stringify(data.user))
+        localStorage.setItem('isLoggedIn', 'true')
+        
+        alert("登入成功！")
+        
+        // 根据用户角色重定向
+        if (data.user.role === 'admin') {
+          window.location.href = '/admin'
+        } else if (data.user.role === 'dashboard_user') {
+          window.location.href = '/dashboard'
+        } else {
+          window.location.href = '/'
+        }
+      } else {
+        alert(data.message || '登入失败')
+      }
+    } catch (error) {
+      console.error('Login error:', error)
+      alert('登入失败，请重试')
+    } finally {
       setIsLoading(false)
-      // In a real app, this would handle authentication
-      alert("登入成功！")
-    }, 1500)
+    }
   }
 
   return (

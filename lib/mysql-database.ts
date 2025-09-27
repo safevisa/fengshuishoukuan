@@ -52,7 +52,20 @@ export class MySQLDatabase {
     const connection = await getConnection();
     const [rows] = await connection.execute('SELECT * FROM payment_links ORDER BY created_at DESC');
     
-    const links = rows as PaymentLink[];
+    // 转换数据库字段名到接口字段名
+    const links = (rows as any[]).map(row => ({
+      id: row.id,
+      userId: row.user_id,
+      amount: row.amount,
+      description: row.description,
+      status: row.status,
+      paymentUrl: row.payment_url,
+      paymentMethod: row.payment_method,
+      transactionId: row.transaction_id,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
+    
     console.log('🔍 [数据库] 查询到的支付链接:', links.map(link => ({
       id: link.id,
       userId: link.userId,
@@ -70,7 +83,29 @@ export class MySQLDatabase {
       'SELECT * FROM payment_links WHERE user_id = ? ORDER BY created_at DESC',
       [userId]
     );
-    return rows as PaymentLink[];
+    
+    // 转换数据库字段名到接口字段名
+    const links = (rows as any[]).map(row => ({
+      id: row.id,
+      userId: row.user_id,  // 数据库字段 user_id -> 接口字段 userId
+      amount: row.amount,
+      description: row.description,
+      status: row.status,
+      paymentUrl: row.payment_url,  // 数据库字段 payment_url -> 接口字段 paymentUrl
+      paymentMethod: row.payment_method,  // 数据库字段 payment_method -> 接口字段 paymentMethod
+      transactionId: row.transaction_id,  // 数据库字段 transaction_id -> 接口字段 transactionId
+      createdAt: row.created_at,  // 数据库字段 created_at -> 接口字段 createdAt
+      updatedAt: row.updated_at   // 数据库字段 updated_at -> 接口字段 updatedAt
+    }));
+    
+    console.log('🔍 [数据库] 转换后的支付链接:', links.map(link => ({
+      id: link.id,
+      userId: link.userId,
+      amount: link.amount,
+      description: link.description
+    })));
+    
+    return links;
   }
 
   // 根据ID获取支付链接
@@ -81,7 +116,19 @@ export class MySQLDatabase {
       [id]
     );
     
-    const links = rows as PaymentLink[];
+    const links = (rows as any[]).map(row => ({
+      id: row.id,
+      userId: row.user_id,
+      amount: row.amount,
+      description: row.description,
+      status: row.status,
+      paymentUrl: row.payment_url,
+      paymentMethod: row.payment_method,
+      transactionId: row.transaction_id,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
+    
     return links.length > 0 ? links[0] : null;
   }
 

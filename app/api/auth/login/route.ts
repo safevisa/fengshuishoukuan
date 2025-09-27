@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { productionDB } from '@/lib/production-database';
+import { mysqlDB } from '@/lib/mysql-database';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 查找用户
-    const user = await productionDB.getUserByEmail(email);
+    const user = await mysqlDB.getUserByEmail(email);
     if (!user) {
       return NextResponse.json({
         success: false,
