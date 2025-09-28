@@ -1,32 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mysqlDB } from '@/lib/mysql-database';
-import crypto from 'crypto';
-
-// 街口支付配置
-const JKOPAY_CONFIG = {
-  merNo: '1888',
-  terNo: '888506',
-  secretKey: 'fe5b2c5ea084426bb1f6269acbac902f',
-  gatewayUrl: 'https://gateway.suntone.com/payment/api/gotoPayment',
-  returnUrl: 'https://jinshiying.com/payment/return',
-  notifyUrl: 'https://jinshiying.com/api/jkopay/callback'
-};
-
-// 生成街口支付签名
-function generateJkopayHash(params: Record<string, string>): string {
-  const sortedParams = [
-    `amount=${params.amount}`,
-    `currencyCode=${params.currencyCode}`,
-    `merNo=${params.merNo}`,
-    `orderNo=${params.orderNo}`,
-    `payIP=${params.payIP}`,
-    `transType=${params.transType}`,
-    `transModel=${params.transModel}`,
-    JKOPAY_CONFIG.secretKey
-  ].join('&');
-  
-  return crypto.createHash('sha256').update(sortedParams).digest('hex');
-}
 
 // 生成街口支付链接
 function generateJkopayUrl(paymentLink: any): string {
@@ -87,15 +60,13 @@ export async function POST(request: NextRequest) {
     
     const tempLink = {
       id: linkId,
-      userId: userId,
+      user_id: userId,
       amount: parseFloat(amount),
       description: description,
       status: 'active' as const,
-      paymentUrl: '',
-      paymentMethod: 'jkopay',
-      transactionId: null as string | null,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      payment_url: '',
+      payment_method: 'jkopay',
+      transaction_id: null as string | null
     };
 
     const realPaymentUrl = generateJkopayUrl(tempLink);
@@ -103,17 +74,19 @@ export async function POST(request: NextRequest) {
     // 创建支付链接
     const paymentLink = await mysqlDB.addPaymentLink({
       ...tempLink,
-      paymentUrl: realPaymentUrl
+      payment_url: realPaymentUrl
     });
     
     // 创建对应的订单
     const order = await mysqlDB.addOrder({
-      userId: userId,
+      user_id: userId,
       amount: parseFloat(amount),
       description: description,
       status: 'pending',
-      paymentLinkId: linkId,
-      paymentMethod: 'jkopay'
+      payment_link_id: linkId,
+      payment_method: 'jkopay',
+      transaction_id: null,
+      completed_at: null
     });
     
     console.log('✅ [支付链接] 创建成功:', paymentLink.id);

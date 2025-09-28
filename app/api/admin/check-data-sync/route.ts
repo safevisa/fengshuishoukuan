@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
     // 3. 检查收款链接-订单一致性
     const paymentLinkOrderIssues = [];
     paymentLinks.forEach(link => {
-      const linkOrders = orders.filter(o => o.paymentLinkId === link.id);
+      const linkOrders = orders.filter(o => o.payment_link_id === link.id);
       if (linkOrders.length === 0 && link.status === 'completed') {
         paymentLinkOrderIssues.push({
           type: 'completed_link_no_order',
@@ -95,13 +95,13 @@ export async function GET(request: NextRequest) {
     });
     
     orders.forEach(order => {
-      if (order.paymentLinkId) {
-        const link = paymentLinks.find(l => l.id === order.paymentLinkId);
+      if (order.payment_link_id) {
+        const link = paymentLinks.find(l => l.id === order.payment_link_id);
         if (!link) {
           paymentLinkOrderIssues.push({
             type: 'order_no_link',
             orderId: order.id,
-            paymentLinkId: order.paymentLinkId,
+            payment_link_id: order.payment_link_id,
             message: '订单关联的收款链接不存在'
           });
         }
@@ -114,8 +114,8 @@ export async function GET(request: NextRequest) {
       details: {
         totalPaymentLinks: paymentLinks.length,
         totalOrders: orders.length,
-        linksWithOrders: paymentLinks.filter(l => orders.some(o => o.paymentLinkId === l.id)).length,
-        ordersWithLinks: orders.filter(o => o.paymentLinkId && paymentLinks.some(l => l.id === o.paymentLinkId)).length
+        linksWithOrders: paymentLinks.filter(l => orders.some(o => o.payment_link_id === l.id)).length,
+        ordersWithLinks: orders.filter(o => o.payment_link_id && paymentLinks.some(l => l.id === o.payment_link_id)).length
       }
     };
     

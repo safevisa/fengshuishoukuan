@@ -3,7 +3,7 @@ import * as crypto from 'crypto';
 export class JkoPayService {
   private config = {
     merNo: '1888', // 商户号
-    terNo: '888506', // 终端号
+    terNo: '88816', // 终端号 - 使用文档示例
     secretKey: 'fe5b2c5ea084426bb1f6269acbac902f', // 密钥
     baseUrl: 'https://gateway.suntone.com/payment/api',
     returnUrl: 'https://jinshiying.com/payment/return',
@@ -11,25 +11,24 @@ export class JkoPayService {
     merMgrURL: 'https://jinshiying.com'
   };
 
-  // 生成SHA256签名 - 按照文档要求
+  // 生成SHA256签名 - 严格按照街口文档示例
   generateSignature(params: Record<string, string>): string {
-    // 按照文档要求的顺序拼接参数
-    const signString = [
-      `amount=${params.amount}`,
-      `currencyCode=${params.currencyCode}`,
-      `merNo=${params.merNo}`,
-      `orderNo=${params.orderNo}`,
-      `payIP=${params.payIP}`,
-      `transType=${params.transType}`,
-      `transModel=${params.transModel}`,
-      `terNo=${params.terNo}`,
-      this.config.secretKey
-    ].join('&');
-    
+    // 根据文档示例：amount=98&currencyCode=TWD&merNo=1888&orderNo=109116361045&payIP=116.30.222.69&transType=sales&transModel=M&terNo=88816&<密钥>
+    const signString = 
+      `amount=${params.amount}` +
+      `&currencyCode=${params.currencyCode}` +
+      `&merNo=${params.merNo}` +
+      `&orderNo=${params.orderNo}` +
+      `&payIP=${params.payIP}` +
+      `&transType=${params.transType}` +
+      `&transModel=${params.transModel}` +
+      `&terNo=${params.terNo}` +
+      `&${this.config.secretKey}`; // 密钥在最后，不带参数名
+
     console.log('🔐 [街口支付] 签名字符串:', signString);
     
     const hash = crypto.createHash('sha256');
-    hash.update(signString);
+    hash.update(signString, 'utf8');
     const signature = hash.digest('hex');
     
     console.log('🔐 [街口支付] 生成的签名:', signature);
@@ -63,19 +62,18 @@ export class JkoPayService {
       goodsInfo = []
     } = orderData;
 
-    // 基本参数
+    // 基本参数 - 严格按照文档要求
     const params: Record<string, string> = {
       merNo: this.config.merNo,
       terNo: this.config.terNo,
-      CharacterSet: 'UTF8',
+      orderNo: orderNo,
+      currencyCode: 'TWD',
+      amount: Math.round(amount).toString(), // 金额为整数
+      payIP: customerInfo.ip || '127.0.0.1',
       transType: 'sales',
       transModel: 'M',
-      getPayLink: 'N',
       apiType: '1',
-      amount: Math.round(amount).toString(), // 金额为整数
-      currencyCode: 'TWD', // 台币
-      orderNo: orderNo,
-      merremark: description.substring(0, 100), // 限制长度
+      merremark: description.substring(0, 100),
       returnURL: this.config.returnUrl.replace(/&/g, '|'),
       merMgrURL: this.config.merMgrURL,
       merNotifyURL: this.config.notifyUrl.replace(/&/g, '|'),
@@ -86,21 +84,20 @@ export class JkoPayService {
       cardCountry: 'TW',
       cardState: 'Taipei',
       cardCity: 'Taipei',
-      cardAddress: '信義區信義路五段7號',
+      cardAddress: '台北市信义区信义路五段7号',
       cardZipCode: '110',
-      payIP: customerInfo.ip || '127.0.0.1',
-      cardFullName: customerInfo.name ? customerInfo.name.replace(' ', '.') : 'Customer.Name',
+      cardFullName: customerInfo.name ? customerInfo.name.replace(' ', '.') : 'Test.User',
       cardFullPhone: customerInfo.phone || '0912345678',
       
       // 收货信息
       grCountry: 'TW',
       grState: 'Taipei',
       grCity: 'Taipei',
-      grAddress: '信義區信義路五段7號',
+      grAddress: '台北市信义区信义路五段7号',
       grZipCode: '110',
-      grEmail: customerInfo.email || 'customer@example.com',
+      grEmail: customerInfo.email || 'test@example.com',
       grphoneNumber: customerInfo.phone || '0912345678',
-      grPerName: customerInfo.name ? customerInfo.name.replace(' ', '.') : 'Customer.Name',
+      grPerName: customerInfo.name ? customerInfo.name.replace(' ', '.') : 'Test.User',
       
       // 商品信息
       goodsString: JSON.stringify({
@@ -155,7 +152,14 @@ export class JkoPayService {
       console.log('📥 [街口支付] 原始响应:', responseText);
       
       // 解析响应
-      const result = Object.fromEntries(new URLSearchParams(responseText));
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (e) {
+        // 如果不是JSON，尝试解析为URL参数
+        result = Object.fromEntries(new URLSearchParams(responseText));
+      }
+      
       console.log('📊 [街口支付] 解析后的响应:', result);
       
       return result;
@@ -181,7 +185,20 @@ export class JkoPayService {
         hashcode
       } = callbackData;
 
-      const signString = [
+      // 根据街口支付文档，回调签名可能不包含 respCode
+      // 尝试两种签名方式
+      const signString1 = [
+        `amount=${amount}`,
+        `currencyCode=${currencyCode}`,
+        `merNo=${merNo}`,
+        `orderNo=${orderNo}`,
+        `terNo=${terNo}`,
+        `tradeNo=${tradeNo}`,
+        `transType=${transType}`,
+        this.config.secretKey
+      ].join('&');
+      
+      const signString2 = [
         `amount=${amount}`,
         `currencyCode=${currencyCode}`,
         `merNo=${merNo}`,
@@ -193,16 +210,23 @@ export class JkoPayService {
         this.config.secretKey
       ].join('&');
       
-      console.log('🔐 [街口支付回调] 验证签名字符串:', signString);
+      console.log('🔐 [街口支付回调] 验证签名字符串1(不含respCode):', signString1);
+      console.log('🔐 [街口支付回调] 验证签名字符串2(含respCode):', signString2);
       
-      const expectedHash = crypto.createHash('sha256')
-        .update(signString)
+      const expectedHash1 = crypto.createHash('sha256')
+        .update(signString1, 'utf8')
         .digest('hex');
       
-      console.log('🔐 [街口支付回调] 期望签名:', expectedHash);
+      const expectedHash2 = crypto.createHash('sha256')
+        .update(signString2, 'utf8')
+        .digest('hex');
+      
+      console.log('🔐 [街口支付回调] 期望签名1:', expectedHash1);
+      console.log('🔐 [街口支付回调] 期望签名2:', expectedHash2);
       console.log('🔐 [街口支付回调] 接收签名:', hashcode);
       
-      return expectedHash === hashcode;
+      // 尝试两种签名方式
+      return expectedHash1 === hashcode || expectedHash2 === hashcode;
     } catch (error) {
       console.error('❌ [街口支付回调] 签名验证错误:', error);
       return false;

@@ -38,10 +38,10 @@ export async function POST(request: NextRequest) {
       amount: 102,
       description: '测试',
       status: 'completed',
-      paymentLinkId: paymentLink.id,
+      payment_link_id: paymentLink.id,
       paymentMethod: 'jkopay',
-      transactionId: 'JK20250924001',
-      completedAt: new Date('2025-09-24T14:32:00+08:00')
+      transaction_id: 'JK20250924001',
+      completed_at: new Date('2025-09-24T14:32:00+08:00')
     });
     console.log('✅ 创建订单:', order.id);
     
@@ -51,13 +51,10 @@ export async function POST(request: NextRequest) {
       amount: 102,
       status: 'completed',
       paymentMethod: 'jkopay',
-      transactionId: 'JK20250924001',
+      transaction_id: 'JK20250924001',
       currencyCode: 'TWD',
       respCode: '00',
-      respMsg: '支付成功',
-      merNo: '1888',
-      terNo: '888506',
-      transType: 'sales'
+      respMsg: '支付成功'
     });
     console.log('✅ 创建支付记录:', payment.id);
     

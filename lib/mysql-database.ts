@@ -1,6 +1,9 @@
 import { getConnection } from './database';
 import { User, Order, Payment, PaymentLink, Withdrawal, FinancialReport, ReconciliationReport } from './types';
 
+// 安全参数处理工具函数
+const safeValue = (val: any) => val === undefined ? null : val;
+
 export class MySQLDatabase {
   // 获取所有用户
   async getAllUsers(): Promise<User[]> {
@@ -157,19 +160,18 @@ export class MySQLDatabase {
     };
     
     const sql = `
-      INSERT INTO users (id, email, name, password, role, status, created_at, updated_at) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO users (id, email, name, password, role, created_at, updated_at) 
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
     
     await connection.execute(sql, [
-      newUser.id, 
-      newUser.email, 
-      newUser.name, 
-      newUser.password, 
-      newUser.role, 
-      newUser.status,
-      newUser.createdAt, 
-      newUser.updatedAt
+      safeValue(newUser.id), 
+      safeValue(newUser.email), 
+      safeValue(newUser.name), 
+      safeValue(newUser.password), 
+      safeValue(newUser.role),
+      safeValue(newUser.createdAt), 
+      safeValue(newUser.updatedAt)
     ]);
     
     return newUser;
@@ -229,16 +231,16 @@ export class MySQLDatabase {
     `;
     
     const params = [
-      newPaymentLink.id, 
-      newPaymentLink.userId,  // 确保这个值不为 undefined
-      newPaymentLink.amount, 
-      newPaymentLink.description, 
-      newPaymentLink.status,
-      newPaymentLink.paymentUrl || null,
-      newPaymentLink.paymentMethod,
-      newPaymentLink.transactionId || null,
-      newPaymentLink.createdAt, 
-      newPaymentLink.updatedAt
+      safeValue(newPaymentLink.id), 
+      safeValue(newPaymentLink.user_id),  // 确保这个值不为 undefined
+      safeValue(newPaymentLink.amount), 
+      safeValue(newPaymentLink.description), 
+      safeValue(newPaymentLink.status),
+      safeValue(newPaymentLink.payment_url),
+      safeValue(newPaymentLink.payment_method),
+      safeValue(newPaymentLink.transaction_id),
+      safeValue(newPaymentLink.createdAt), 
+      safeValue(newPaymentLink.updatedAt)
     ];
     
     console.log('🔍 [数据库] SQL 参数:', params);
@@ -288,20 +290,34 @@ export class MySQLDatabase {
     `;
     
     await connection.execute(sql, [
-      newOrder.id, 
-      newOrder.userId, 
-      newOrder.amount, 
-      newOrder.description, 
-      newOrder.status,
-      newOrder.paymentLinkId || null,
-      newOrder.paymentMethod || null,
-      newOrder.transactionId || null,
-      newOrder.completedAt || null,
-      newOrder.createdAt, 
-      newOrder.updatedAt
+      safeValue(newOrder.id), 
+      safeValue(newOrder.user_id), 
+      safeValue(newOrder.amount), 
+      safeValue(newOrder.description), 
+      safeValue(newOrder.status),
+      safeValue(newOrder.payment_link_id),
+      safeValue(newOrder.payment_method),
+      safeValue(newOrder.transaction_id),
+      safeValue(newOrder.completed_at),
+      safeValue(newOrder.createdAt), 
+      safeValue(newOrder.updatedAt)
     ]);
     
     return newOrder;
+  }
+
+  // 更新订单
+  async updateOrder(id: string, updates: Partial<Order>): Promise<boolean> {
+    const connection = await getConnection();
+    const fields = Object.keys(updates).map(key => `${key} = ?`).join(", ");
+    const values = Object.values(updates);
+    
+    await connection.execute(
+      `UPDATE orders SET ${fields} WHERE id = ?`,
+      [...values, id]
+    );
+    
+    return true;
   }
 
   // 添加支付记录
@@ -323,17 +339,17 @@ export class MySQLDatabase {
     `;
     
     await connection.execute(sql, [
-      newPayment.id, 
-      newPayment.orderId, 
-      newPayment.amount, 
-      newPayment.status,
-      newPayment.paymentMethod,
-      newPayment.transactionId || null,
-      newPayment.currencyCode || null,
-      newPayment.respCode || null,
-      newPayment.respMsg || null,
-      newPayment.createdAt, 
-      newPayment.updatedAt
+      safeValue(newPayment.id), 
+      safeValue(newPayment.orderId), 
+      safeValue(newPayment.amount), 
+      safeValue(newPayment.status),
+      safeValue(newPayment.paymentMethod),
+      safeValue(newPayment.transaction_id),
+      safeValue(newPayment.currencyCode),
+      safeValue(newPayment.respCode),
+      safeValue(newPayment.respMsg),
+      safeValue(newPayment.createdAt), 
+      safeValue(newPayment.updatedAt)
     ]);
     
     return newPayment;
@@ -362,10 +378,10 @@ export class MySQLDatabase {
       const netRevenue = totalSales - platformFee;
       
       const report: FinancialReport = {
-        totalSales: parseFloat(totalSales.toFixed(2)),
+        totalSales: parseFloat(Number(totalSales).toFixed(2)),
         totalOrders,
-        platformFee: parseFloat(platformFee.toFixed(2)),
-        netRevenue: parseFloat(netRevenue.toFixed(2)),
+        platformFee: parseFloat(Number(platformFee).toFixed(2)),
+        netRevenue: parseFloat(Number(netRevenue).toFixed(2)),
         totalUsers,
         totalPayments,
         totalPaymentLinks,
@@ -398,7 +414,7 @@ export class MySQLDatabase {
       const dailyData = orders
         .filter(order => order.status === 'completed')
         .reduce((acc, order) => {
-          const date = order.createdAt.toISOString().split('T')[0];
+          const date = order.createdAt ? order.createdAt.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
           if (!acc[date]) {
             acc[date] = { count: 0, amount: 0 };
           }
@@ -410,13 +426,13 @@ export class MySQLDatabase {
       const dailyDataArray = Object.entries(dailyData).map(([date, data]) => ({
         date: new Date(date).toISOString(),
         count: data.count,
-        amount: parseFloat(data.amount.toFixed(2))
+        amount: parseFloat(Number(data.amount).toFixed(2))
       }));
       
       const report: ReconciliationReport = {
         totalOrders,
         totalPayments,
-        totalAmount: parseFloat(totalAmount.toFixed(2)),
+        totalAmount: parseFloat(Number(totalAmount).toFixed(2)),
         dailyData: dailyDataArray,
         generatedAt: new Date().toISOString()
       };

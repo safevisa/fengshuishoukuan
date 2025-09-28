@@ -19,9 +19,9 @@ export async function GET(request: NextRequest) {
     });
     
     // 计算总体统计
-    const totalAmount = payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+    const totalAmount = payments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
     const successPayments = payments.filter(p => p.status === 'completed');
-    const successAmount = successPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+    const successAmount = successPayments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
     const successRate = payments.length > 0 ? (successPayments.length / payments.length * 100).toFixed(2) + '%' : '0%';
     
     const totalStats = {
@@ -37,15 +37,15 @@ export async function GET(request: NextRequest) {
     
     // 计算用户统计
     const userStats = users.map(user => {
-      const userOrders = orders.filter(order => order.userId === user.id);
+      const userOrders = orders.filter(order => order.user_id === user.id);
       const userPayments = payments.filter(payment => 
-        userOrders.some(order => order.id === payment.orderId)
+        userOrders.some(order => order.id === payment.order_id)
       );
       const userPaymentLinks = paymentLinks.filter(link => link.userId === user.id);
       
-      const userTotalAmount = userPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+      const userTotalAmount = userPayments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
       const userSuccessPayments = userPayments.filter(p => p.status === 'completed');
-      const userSuccessAmount = userSuccessPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+      const userSuccessAmount = userSuccessPayments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
       const userSuccessRate = userPayments.length > 0 ? (userSuccessPayments.length / userPayments.length * 100).toFixed(2) + '%' : '0%';
       
       return {
