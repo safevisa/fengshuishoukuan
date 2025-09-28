@@ -18,7 +18,10 @@ import {
   MoreHorizontal,
   Plus,
   Filter,
-  Search
+  Search,
+  BarChart3,
+  Calendar,
+  Link as LinkIcon
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -45,6 +48,9 @@ export default function AdminDashboard() {
     password: "",
     role: "user"
   })
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [userPaymentDetails, setUserPaymentDetails] = useState<any>(null)
+  const [isPaymentDetailsOpen, setIsPaymentDetailsOpen] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -113,6 +119,25 @@ export default function AdminDashboard() {
     } catch (error) {
       console.error('Create user error:', error)
       alert("创建用户失败，请重试")
+    }
+  }
+
+  const handleViewPaymentDetails = async (user: User) => {
+    try {
+      setSelectedUser(user)
+      setIsPaymentDetailsOpen(true)
+      
+      const response = await fetch(`/api/admin/user-payment-details?userId=${user.id}`)
+      const result = await response.json()
+      
+      if (result.success) {
+        setUserPaymentDetails(result.data)
+      } else {
+        alert(result.message)
+      }
+    } catch (error) {
+      console.error('Error loading payment details:', error)
+      alert("获取用户收款详情失败")
     }
   }
 
@@ -414,7 +439,15 @@ export default function AdminDashboard() {
                           <TableCell>{formatCurrency(user.balance || 0)}</TableCell>
                           <TableCell>{formatDate(user.createdAt)}</TableCell>
                           <TableCell>
-                            <div className="mobile-actions">
+                            <div className="mobile-actions flex items-center space-x-2">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="mobile-button"
+                                onClick={() => handleViewPaymentDetails(user)}
+                              >
+                                <BarChart3 className="h-4 w-4" />
+                              </Button>
                               <Button variant="ghost" size="sm" className="mobile-button">
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
@@ -649,6 +682,153 @@ export default function AdminDashboard() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* 用户收款详情对话框 */}
+      <Dialog open={isPaymentDetailsOpen} onOpenChange={setIsPaymentDetailsOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>用户收款详情</DialogTitle>
+            <DialogDescription>
+              {selectedUser && `查看 ${selectedUser.name} (${selectedUser.email}) 的收款情况`}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {userPaymentDetails && (
+            <div className="space-y-6">
+              {/* 用户基本信息 */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">用户信息</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">姓名</p>
+                      <p className="font-medium">{userPaymentDetails.user.name}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">邮箱</p>
+                      <p className="font-medium">{userPaymentDetails.user.email}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">电话</p>
+                      <p className="font-medium">{userPaymentDetails.user.phone}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">状态</p>
+                      <p className="font-medium">{getStatusBadge(userPaymentDetails.user.status)}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 收款统计 */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">收款统计</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-blue-600">{userPaymentDetails.summary.totalLinks}</p>
+                      <p className="text-sm text-muted-foreground">收款链接</p>
+                      <p className="text-xs text-muted-foreground">活跃: {userPaymentDetails.summary.activeLinks}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-green-600">{userPaymentDetails.summary.totalOrders}</p>
+                      <p className="text-sm text-muted-foreground">总订单</p>
+                      <p className="text-xs text-muted-foreground">已完成: {userPaymentDetails.summary.completedOrders}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-purple-600">{userPaymentDetails.summary.totalPayments}</p>
+                      <p className="text-sm text-muted-foreground">支付记录</p>
+                      <p className="text-xs text-muted-foreground">成功: {userPaymentDetails.summary.successfulPayments}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-orange-600">{formatCurrency(userPaymentDetails.summary.totalAmount)}</p>
+                      <p className="text-sm text-muted-foreground">总收款</p>
+                      <p className="text-xs text-muted-foreground">成功率: {userPaymentDetails.summary.successRate}%</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 收款链接详情 */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">收款链接详情</CardTitle>
+                  <CardDescription>查看每个收款链接的详细情况</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {userPaymentDetails.linkDetails.map((link: any) => (
+                      <div key={link.id} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center space-x-2">
+                            <LinkIcon className="h-4 w-4" />
+                            <span className="font-medium">{link.description}</span>
+                            <Badge variant={link.status === 'active' ? 'default' : 'secondary'}>
+                              {link.status === 'active' ? '活跃' : '已完成'}
+                            </Badge>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm text-muted-foreground">金额: {formatCurrency(link.amount)}</p>
+                            <p className="text-sm text-muted-foreground">收款: {formatCurrency(link.totalAmount)}</p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <p className="text-muted-foreground">订单数</p>
+                            <p className="font-medium">{link.orders.length}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">支付数</p>
+                            <p className="font-medium">{link.payments.length}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">成功支付</p>
+                            <p className="font-medium">{link.successCount}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">创建时间</p>
+                            <p className="font-medium">{formatDate(link.createdAt)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 每日收款统计 */}
+              {userPaymentDetails.dailyStats.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">每日收款统计</CardTitle>
+                    <CardDescription>最近7天的收款情况</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {userPaymentDetails.dailyStats.slice(0, 7).map((day: any, index: number) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                          <div className="flex items-center space-x-2">
+                            <Calendar className="h-4 w-4" />
+                            <span className="font-medium">{day.date}</span>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium">{day.count} 笔支付</p>
+                            <p className="text-sm text-muted-foreground">{formatCurrency(day.amount)}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
     </AdminGuard>
   )
