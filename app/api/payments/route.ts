@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     console.error('Get payments error:', error);
     return NextResponse.json({
       success: false,
-      message: '获取支付记录失败'
+      message: '獲取支付記錄失敗'
     }, { status: 500 });
   }
 }

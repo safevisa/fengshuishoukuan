@@ -6,7 +6,18 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start",
+    "6s-check": "./scripts/6s-check.sh",
+    "6s-sort": "npx eslint . --ext .ts,.tsx --rule '@typescript-eslint/no-unused-vars: error' --quiet",
+    "6s-shine": "npm run lint && npx tsc --noEmit && npx prettier --check .",
+    "6s-security": "grep -r 'password\\|secret\\|key\\|token' --include='*.ts' --include='*.tsx' . | grep -v '//'",
+    "pre-commit": "npm run 6s-check",
+    "mysql:install": "./scripts/install-mysql.sh",
+    "mysql:start": "docker-compose -f docker-compose.mysql.yml up -d",
+    "mysql:stop": "docker-compose -f docker-compose.mysql.yml down",
+    "mysql:logs": "docker-compose -f docker-compose.mysql.yml logs -f",
+    "db:init": "mysql -u fengshui_user -pfengshui_password fengshui_ecommerce < init-database.sql",
+    "db:test": "node -e \"require('./lib/database').checkDatabaseHealth().then(console.log)\""
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

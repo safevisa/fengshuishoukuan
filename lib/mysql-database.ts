@@ -1,15 +1,21 @@
 import { getConnection } from './database';
 import { User, Order, Payment, PaymentLink, Withdrawal, FinancialReport, ReconciliationReport } from './types';
 
-// 安全参数处理工具函数
-const safeValue = (val: any) => val === undefined ? null : val;
-
 export class MySQLDatabase {
   // 获取所有用户
   async getAllUsers(): Promise<User[]> {
     const connection = await getConnection();
     const [rows] = await connection.execute('SELECT * FROM users ORDER BY created_at DESC');
-    return rows as User[];
+    connection.release();
+    
+    // 转换日期字段
+    const users = (rows as any[]).map(row => ({
+      ...row,
+      createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+      updatedAt: row.updated_at ? new Date(row.updated_at) : new Date()
+    }));
+    
+    return users as User[];
   }
 
   // 根据邮箱获取用户
@@ -19,105 +25,337 @@ export class MySQLDatabase {
       'SELECT * FROM users WHERE email = ? LIMIT 1',
       [email]
     );
+    connection.release();
     
-    const users = rows as User[];
+    const users = (rows as any[]).map(row => ({
+      ...row,
+      createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+      updatedAt: row.updated_at ? new Date(row.updated_at) : new Date()
+    }));
+    
     return users.length > 0 ? users[0] : null;
   }
 
   // 根据ID获取用户
-  async getUserById(id: string): Promise<User | null> {
+  async getUserById(userId: string): Promise<User | null> {
     const connection = await getConnection();
     const [rows] = await connection.execute(
       'SELECT * FROM users WHERE id = ? LIMIT 1',
-      [id]
+      [userId]
     );
+    connection.release();
     
-    const users = rows as User[];
+    const users = (rows as any[]).map(row => ({
+      ...row,
+      createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+      updatedAt: row.updated_at ? new Date(row.updated_at) : new Date()
+    }));
+    
     return users.length > 0 ? users[0] : null;
   }
 
-  // 获取所有订单
+  // 添加用户
+  async addUser(user: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): Promise<User> {
+    const connection = await getConnection();
+    const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    const newUser: User = {
+      id: userId,
+      name: user.name || '',
+      email: user.email || '',
+      password: user.password || '',
+      phone: user.phone || '',
+      role: user.role || 'user',
+      userType: user.userType || 'self_registered',
+      status: user.status || 'active',
+      balance: user.balance || 0,
+      totalEarnings: user.totalEarnings || 0,
+      totalWithdrawals: user.totalWithdrawals || 0,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    await connection.execute(
+      'INSERT INTO users (id, name, email, password, phone, role, user_type, status, balance, total_earnings, total_withdrawals, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        newUser.id,
+        newUser.name,
+        newUser.email,
+        newUser.password,
+        newUser.phone,
+        newUser.role,
+        newUser.userType,
+        newUser.status,
+        newUser.balance,
+        newUser.totalEarnings,
+        newUser.totalWithdrawals,
+        newUser.createdAt,
+        newUser.updatedAt
+      ]
+    );
+    
+    connection.release();
+    return newUser;
+  }
+
+    // 获取所有订单
   async getAllOrders(): Promise<Order[]> {
     const connection = await getConnection();
-    const [rows] = await connection.execute('SELECT * FROM orders ORDER BY created_at DESC');
-    return rows as Order[];
+    const [rows] = await connection.execute(`
+      SELECT 
+        o.id,
+        o.user_id,
+        u.name as user_name,
+        u.email as user_email,
+        o.amount,
+        o.description,
+        o.status,
+        o.payment_link_id,
+        o.payment_method,
+        o.transaction_id,
+        o.completed_at,
+        o.created_at,
+        o.updated_at
+      FROM orders o
+      LEFT JOIN users u ON o.user_id = u.id
+      ORDER BY o.created_at DESC
+    `);
+    connection.release();
+    
+    // 手动映射字段名为camelCase
+    const orders = (rows as any[]).map(row => ({
+      id: row.id,
+      userId: row.user_id,
+      userName: row.user_name,
+      userEmail: row.user_email,
+      amount: row.amount,
+      description: row.description,
+      status: row.status,
+      paymentLinkId: row.payment_link_id,
+      paymentMethod: row.payment_method,
+      transactionId: row.transaction_id,
+      completedAt: row.completed_at ? new Date(row.completed_at) : null,
+      createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+      updatedAt: row.updated_at ? new Date(row.updated_at) : new Date()
+    }));
+    
+    return orders as Order[];
+  }
+
+  // 添加订单
+  async addOrder(order: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>): Promise<Order> {
+    const connection = await getConnection();
+    const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    const newOrder: Order = {
+      id: orderId,
+      userId: order.userId,
+      amount: order.amount,
+      status: order.status,
+      paymentLinkId: order.paymentLinkId,
+      paymentMethod: order.paymentMethod,
+      transactionId: order.transactionId,
+      completedAt: order.completedAt,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    await connection.execute(
+      'INSERT INTO orders (id, user_id, amount, status, payment_link_id, payment_method, transaction_id, completed_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        newOrder.id,
+        newOrder.userId,
+        newOrder.amount,
+        newOrder.status,
+        newOrder.paymentLinkId,
+        newOrder.paymentMethod,
+        newOrder.transactionId,
+        newOrder.completedAt,
+        newOrder.createdAt,
+        newOrder.updatedAt
+      ]
+    );
+    
+    connection.release();
+    return newOrder;
+  }
+
+  // 更新订单
+  async updateOrder(orderId: string, updates: Partial<Order>): Promise<void> {
+    const connection = await getConnection();
+    const fields = [];
+    const values = [];
+
+    if (updates.status !== undefined) {
+      fields.push('status = ?');
+      values.push(updates.status);
+    }
+    if (updates.transactionId !== undefined) {
+      fields.push('transaction_id = ?');
+      values.push(updates.transactionId);
+    }
+    if (updates.completedAt !== undefined) {
+      fields.push('completed_at = ?');
+      values.push(updates.completedAt);
+    }
+
+    if (fields.length > 0) {
+      values.push(orderId);
+      await connection.execute(
+        `UPDATE orders SET ${fields.join(', ')} WHERE id = ?`,
+        values
+      );
+    }
+    
+    connection.release();
   }
 
   // 获取所有支付记录
   async getAllPayments(): Promise<Payment[]> {
     const connection = await getConnection();
     const [rows] = await connection.execute('SELECT * FROM payments ORDER BY created_at DESC');
-    return rows as Payment[];
+    connection.release();
+    
+    // 转换日期字段
+    const payments = (rows as any[]).map(row => ({
+      ...row,
+      createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+      updatedAt: row.updated_at ? new Date(row.updated_at) : new Date()
+    }));
+    
+    return payments as Payment[];
   }
 
-  // 获取所有支付链接
+  // 添加支付记录
+  async addPayment(payment: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>): Promise<Payment> {
+    const connection = await getConnection();
+    const paymentId = `payment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    const newPayment: Payment = {
+      id: paymentId,
+      orderId: payment.orderId,
+      amount: payment.amount,
+      status: payment.status,
+      paymentMethod: payment.paymentMethod,
+      transactionId: payment.transactionId,
+      currencyCode: payment.currencyCode,
+      respCode: payment.respCode,
+      respMsg: payment.respMsg,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    await connection.execute(
+      'INSERT INTO payments (id, order_id, amount, status, payment_method, transaction_id, currency_code, resp_code, resp_msg, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        newPayment.id,
+        newPayment.orderId,
+        newPayment.amount,
+        newPayment.status,
+        newPayment.paymentMethod,
+        newPayment.transactionId,
+        newPayment.currencyCode,
+        newPayment.respCode,
+        newPayment.respMsg,
+        newPayment.createdAt,
+        newPayment.updatedAt
+      ]
+    );
+    
+    connection.release();
+    return newPayment;
+  }
+
+    // 获取所有收款链接
+  // 获取所有收款链接
   async getAllPaymentLinks(): Promise<PaymentLink[]> {
     const connection = await getConnection();
-    const [rows] = await connection.execute('SELECT * FROM payment_links ORDER BY created_at DESC');
+    const [rows] = await connection.execute(`
+      SELECT 
+        pl.id,
+        pl.user_id,
+        u.name as user_name,
+        u.email as user_email,
+        pl.amount,
+        pl.description,
+        pl.status,
+        pl.payment_url,
+        pl.payment_method,
+        pl.transaction_id,
+        pl.product_image,
+        pl.max_uses,
+        pl.used_count,
+        pl.is_single_use,
+        pl.created_at,
+        pl.updated_at
+      FROM payment_links pl
+      LEFT JOIN users u ON pl.user_id = u.id
+      ORDER BY pl.created_at DESC
+    `);
+    connection.release();
     
-    // 转换数据库字段名到接口字段名
-    const links = (rows as any[]).map(row => ({
+    // 手动映射字段名为camelCase
+    const paymentLinks = (rows as any[]).map(row => ({
       id: row.id,
       userId: row.user_id,
+      userName: row.user_name,
+      userEmail: row.user_email,
       amount: row.amount,
       description: row.description,
       status: row.status,
       paymentUrl: row.payment_url,
       paymentMethod: row.payment_method,
       transactionId: row.transaction_id,
+      productImage: row.product_image,
+      maxUses: row.max_uses,
+      usedCount: row.used_count,
+      isSingleUse: row.is_single_use,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }));
     
-    console.log('🔍 [数据库] 查询到的支付链接:', links.map(link => ({
-      id: link.id,
-      userId: link.userId,
-      amount: link.amount,
-      description: link.description
-    })));
-    
-    return links;
+    return paymentLinks as PaymentLink[];
   }
 
-  // 根据用户ID获取支付链接
+
+  // 根据用户ID获取收款链接
   async getPaymentLinksByUserId(userId: string): Promise<PaymentLink[]> {
     const connection = await getConnection();
     const [rows] = await connection.execute(
       'SELECT * FROM payment_links WHERE user_id = ? ORDER BY created_at DESC',
       [userId]
     );
+    connection.release();
     
-    // 转换数据库字段名到接口字段名
-    const links = (rows as any[]).map(row => ({
+    // 手动映射字段名为camelCase
+    const paymentLinks = (rows as any[]).map(row => ({
       id: row.id,
-      userId: row.user_id,  // 数据库字段 user_id -> 接口字段 userId
+      userId: row.user_id,
       amount: row.amount,
       description: row.description,
       status: row.status,
-      paymentUrl: row.payment_url,  // 数据库字段 payment_url -> 接口字段 paymentUrl
-      paymentMethod: row.payment_method,  // 数据库字段 payment_method -> 接口字段 paymentMethod
-      transactionId: row.transaction_id,  // 数据库字段 transaction_id -> 接口字段 transactionId
-      createdAt: row.created_at,  // 数据库字段 created_at -> 接口字段 createdAt
-      updatedAt: row.updated_at   // 数据库字段 updated_at -> 接口字段 updatedAt
+      paymentUrl: row.payment_url,
+      paymentMethod: row.payment_method,
+      transactionId: row.transaction_id,
+      productImage: row.product_image,
+      maxUses: row.max_uses,
+      usedCount: row.used_count,
+      isSingleUse: row.is_single_use,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
     }));
     
-    console.log('🔍 [数据库] 转换后的支付链接:', links.map(link => ({
-      id: link.id,
-      userId: link.userId,
-      amount: link.amount,
-      description: link.description
-    })));
-    
-    return links;
+    return paymentLinks as PaymentLink[];
   }
 
-  // 根据ID获取支付链接
-  async getPaymentLinkById(id: string): Promise<PaymentLink | null> {
+  // 根据ID获取收款链接
+  async getPaymentLinkById(linkId: string): Promise<PaymentLink | null> {
     const connection = await getConnection();
     const [rows] = await connection.execute(
       'SELECT * FROM payment_links WHERE id = ? LIMIT 1',
-      [id]
+      [linkId]
     );
+    connection.release();
     
     const links = (rows as any[]).map(row => ({
       id: row.id,
@@ -128,6 +366,10 @@ export class MySQLDatabase {
       paymentUrl: row.payment_url,
       paymentMethod: row.payment_method,
       transactionId: row.transaction_id,
+      productImage: row.product_image,
+      maxUses: row.max_uses,
+      usedCount: row.used_count,
+      isSingleUse: row.is_single_use,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }));
@@ -135,352 +377,258 @@ export class MySQLDatabase {
     return links.length > 0 ? links[0] : null;
   }
 
-  // 删除支付链接
-  async deletePaymentLink(id: string): Promise<boolean> {
+  // 添加收款链接
+async addPaymentLink(paymentLink: Omit<PaymentLink, 'id' | 'createdAt' | 'updatedAt'>): Promise<PaymentLink> {
+  const connection = await getConnection();
+  const linkId = `link_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
+  const newPaymentLink: PaymentLink = {
+    id: linkId,
+    userId: paymentLink.userId,
+    amount: paymentLink.amount,
+    description: paymentLink.description,
+    status: paymentLink.status,
+    paymentUrl: paymentLink.paymentUrl || `https://jinshiying.com/pay/${linkId}`,
+    paymentMethod: paymentLink.paymentMethod || 'jkopay',
+    transactionId: paymentLink.transactionId || null,
+    productImage: paymentLink.productImage || null,
+    maxUses: paymentLink.maxUses || 1,
+    usedCount: paymentLink.usedCount || 0,
+    isSingleUse: paymentLink.isSingleUse !== undefined ? paymentLink.isSingleUse : true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+
+  await connection.execute(
+    'INSERT INTO payment_links (id, user_id, amount, description, status, payment_url, payment_method, transaction_id, product_image, max_uses, used_count, is_single_use, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [
+      newPaymentLink.id,
+      newPaymentLink.userId,
+      newPaymentLink.amount,
+      newPaymentLink.description,
+      newPaymentLink.status,
+      newPaymentLink.paymentUrl,
+      newPaymentLink.paymentMethod,
+      newPaymentLink.transactionId,
+      newPaymentLink.productImage,
+      newPaymentLink.maxUses,
+      newPaymentLink.usedCount,
+      newPaymentLink.isSingleUse,
+      newPaymentLink.createdAt,
+      newPaymentLink.updatedAt
+    ]
+  );
+  
+  connection.release();
+  return newPaymentLink;
+}
+
+  // 更新收款链接
+  async updatePaymentLink(linkId: string, updates: Partial<PaymentLink>): Promise<void> {
+    const connection = await getConnection();
+    const fields = [];
+    const values = [];
+
+    if (updates.status !== undefined) {
+      fields.push('status = ?');
+      values.push(updates.status);
+    }
+    if (updates.transactionId !== undefined) {
+      fields.push('transaction_id = ?');
+      values.push(updates.transactionId);
+    }
+    if (updates.usedCount !== undefined) {
+      fields.push('used_count = ?');
+      values.push(updates.usedCount);
+    }
+    if (updates.productImage !== undefined) {
+      fields.push('product_image = ?');
+      values.push(updates.productImage);
+    }
+
+    if (fields.length > 0) {
+      values.push(linkId);
+      await connection.execute(
+        `UPDATE payment_links SET ${fields.join(', ')} WHERE id = ?`,
+        values
+      );
+    }
+    
+    connection.release();
+  }
+
+  // 增加收款链接使用次数
+  async incrementPaymentLinkUsage(linkId: string): Promise<void> {
+    const connection = await getConnection();
+    await connection.execute(
+      'UPDATE payment_links SET used_count = used_count + 1 WHERE id = ?',
+      [linkId]
+    );
+    connection.release();
+  }
+
+  // 删除收款链接
+  async deletePaymentLink(linkId: string): Promise<boolean> {
     const connection = await getConnection();
     const [result] = await connection.execute(
       'DELETE FROM payment_links WHERE id = ?',
-      [id]
+      [linkId]
     );
+    connection.release();
     
     return (result as any).affectedRows > 0;
-  }
-
-  // 添加用户
-  async addUser(user: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): Promise<User> {
-    const connection = await getConnection();
-    const id = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const now = new Date();
-    
-    const newUser: User = {
-      id,
-      ...user,
-      createdAt: now,
-      updatedAt: now
-    };
-    
-    const sql = `
-      INSERT INTO users (id, email, name, password, role, created_at, updated_at) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `;
-    
-    await connection.execute(sql, [
-      safeValue(newUser.id), 
-      safeValue(newUser.email), 
-      safeValue(newUser.name), 
-      safeValue(newUser.password), 
-      safeValue(newUser.role),
-      safeValue(newUser.createdAt), 
-      safeValue(newUser.updatedAt)
-    ]);
-    
-    return newUser;
-  }
-
-  // 更新用户
-  async updateUser(id: string, updates: Partial<Omit<User, 'id' | 'createdAt' | 'updatedAt'>>): Promise<User | null> {
-    const connection = await getConnection();
-    const now = new Date();
-    
-    const fields = Object.keys(updates).map(key => `${key} = ?`).join(', ');
-    const values = Object.values(updates);
-    
-    const sql = `
-      UPDATE users 
-      SET ${fields}, updated_at = ? 
-      WHERE id = ?
-    `;
-    
-    await connection.execute(sql, [...values, now, id]);
-    
-    return await this.getUserById(id);
-  }
-
-  // 删除用户
-  async deleteUser(id: string): Promise<boolean> {
-    const connection = await getConnection();
-    const [result] = await connection.execute(
-      'DELETE FROM users WHERE id = ?',
-      [id]
-    );
-    
-    return (result as any).affectedRows > 0;
-  }
-
-  // 添加支付链接
-  async addPaymentLink(paymentLink: Omit<PaymentLink, 'createdAt' | 'updatedAt'>): Promise<PaymentLink> {
-    const connection = await getConnection();
-    const now = new Date();
-    
-    const newPaymentLink: PaymentLink = {
-      ...paymentLink,
-      createdAt: now,
-      updatedAt: now
-    };
-    
-    console.log('🔍 [数据库] 准备插入支付链接:', {
-      id: newPaymentLink.id,
-      userId: newPaymentLink.userId,
-      amount: newPaymentLink.amount,
-      description: newPaymentLink.description
-    });
-    
-    const sql = `
-      INSERT INTO payment_links (id, user_id, amount, description, status, payment_url, payment_method, transaction_id, created_at, updated_at) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
-    
-    const params = [
-      safeValue(newPaymentLink.id), 
-      safeValue(newPaymentLink.user_id),  // 确保这个值不为 undefined
-      safeValue(newPaymentLink.amount), 
-      safeValue(newPaymentLink.description), 
-      safeValue(newPaymentLink.status),
-      safeValue(newPaymentLink.payment_url),
-      safeValue(newPaymentLink.payment_method),
-      safeValue(newPaymentLink.transaction_id),
-      safeValue(newPaymentLink.createdAt), 
-      safeValue(newPaymentLink.updatedAt)
-    ];
-    
-    console.log('🔍 [数据库] SQL 参数:', params);
-    
-    await connection.execute(sql, params);
-    
-    console.log('✅ [数据库] 支付链接插入成功');
-    
-    return newPaymentLink;
-  }
-
-  // 更新支付链接
-  async updatePaymentLink(id: string, updates: Partial<Omit<PaymentLink, 'id' | 'createdAt' | 'updatedAt'>>): Promise<PaymentLink | null> {
-    const connection = await getConnection();
-    const now = new Date();
-    
-    const fields = Object.keys(updates).map(key => `${key} = ?`).join(', ');
-    const values = Object.values(updates);
-    
-    const sql = `
-      UPDATE payment_links 
-      SET ${fields}, updated_at = ? 
-      WHERE id = ?
-    `;
-    
-    await connection.execute(sql, [...values, now, id]);
-    
-    return await this.getPaymentLinkById(id);
-  }
-
-  // 添加订单
-  async addOrder(order: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>): Promise<Order> {
-    const connection = await getConnection();
-    const id = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const now = new Date();
-    
-    const newOrder: Order = {
-      id,
-      ...order,
-      createdAt: now,
-      updatedAt: now
-    };
-    
-    const sql = `
-      INSERT INTO orders (id, user_id, amount, description, status, payment_link_id, payment_method, transaction_id, completed_at, created_at, updated_at) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
-    
-    await connection.execute(sql, [
-      safeValue(newOrder.id), 
-      safeValue(newOrder.user_id), 
-      safeValue(newOrder.amount), 
-      safeValue(newOrder.description), 
-      safeValue(newOrder.status),
-      safeValue(newOrder.payment_link_id),
-      safeValue(newOrder.payment_method),
-      safeValue(newOrder.transaction_id),
-      safeValue(newOrder.completed_at),
-      safeValue(newOrder.createdAt), 
-      safeValue(newOrder.updatedAt)
-    ]);
-    
-    return newOrder;
-  }
-
-  // 更新订单
-  async updateOrder(id: string, updates: Partial<Order>): Promise<boolean> {
-    const connection = await getConnection();
-    const fields = Object.keys(updates).map(key => `${key} = ?`).join(", ");
-    const values = Object.values(updates);
-    
-    await connection.execute(
-      `UPDATE orders SET ${fields} WHERE id = ?`,
-      [...values, id]
-    );
-    
-    return true;
-  }
-
-  // 添加支付记录
-  async addPayment(payment: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>): Promise<Payment> {
-    const connection = await getConnection();
-    const id = `payment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const now = new Date();
-    
-    const newPayment: Payment = {
-      id,
-      ...payment,
-      createdAt: now,
-      updatedAt: now
-    };
-    
-    const sql = `
-      INSERT INTO payments (id, order_id, amount, status, payment_method, transaction_id, currency_code, resp_code, resp_msg, created_at, updated_at) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
-    
-    await connection.execute(sql, [
-      safeValue(newPayment.id), 
-      safeValue(newPayment.orderId), 
-      safeValue(newPayment.amount), 
-      safeValue(newPayment.status),
-      safeValue(newPayment.paymentMethod),
-      safeValue(newPayment.transaction_id),
-      safeValue(newPayment.currencyCode),
-      safeValue(newPayment.respCode),
-      safeValue(newPayment.respMsg),
-      safeValue(newPayment.createdAt), 
-      safeValue(newPayment.updatedAt)
-    ]);
-    
-    return newPayment;
-  }
-
-  // 生成财务报表
-  async generateFinancialReport(): Promise<FinancialReport> {
-    console.log(' 开始生成财务报表...');
-    
-    try {
-      const users = await this.getAllUsers();
-      const orders = await this.getAllOrders();
-      const payments = await this.getAllPayments();
-      const paymentLinks = await this.getAllPaymentLinks();
-      
-      const totalUsers = users.length;
-      const totalOrders = orders.length;
-      const totalPayments = payments.length;
-      const totalPaymentLinks = paymentLinks.length;
-      
-      const totalSales = orders
-        .filter(order => order.status === 'completed')
-        .reduce((sum, order) => sum + order.amount, 0);
-      
-      const platformFee = totalSales * 0.03; // 3% 平台费
-      const netRevenue = totalSales - platformFee;
-      
-      const report: FinancialReport = {
-        totalSales: parseFloat(Number(totalSales).toFixed(2)),
-        totalOrders,
-        platformFee: parseFloat(Number(platformFee).toFixed(2)),
-        netRevenue: parseFloat(Number(netRevenue).toFixed(2)),
-        totalUsers,
-        totalPayments,
-        totalPaymentLinks,
-        generatedAt: new Date().toISOString()
-      };
-      
-      console.log('✅ 财务报表生成成功:', report);
-      return report;
-    } catch (error) {
-      console.error('❌ 生成财务报表失败:', error);
-      throw error;
-    }
-  }
-
-  // 生成对账报告
-  async generateReconciliationReport(): Promise<ReconciliationReport> {
-    console.log('开始生成对账报告...');
-    
-    try {
-      const orders = await this.getAllOrders();
-      const payments = await this.getAllPayments();
-      
-      const totalOrders = orders.length;
-      const totalPayments = payments.length;
-      const totalAmount = orders
-        .filter(order => order.status === 'completed')
-        .reduce((sum, order) => sum + order.amount, 0);
-      
-      // 按日期分组统计
-      const dailyData = orders
-        .filter(order => order.status === 'completed')
-        .reduce((acc, order) => {
-          const date = order.createdAt ? order.createdAt.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-          if (!acc[date]) {
-            acc[date] = { count: 0, amount: 0 };
-          }
-          acc[date].count++;
-          acc[date].amount += order.amount;
-          return acc;
-        }, {} as Record<string, { count: number; amount: number }>);
-      
-      const dailyDataArray = Object.entries(dailyData).map(([date, data]) => ({
-        date: new Date(date).toISOString(),
-        count: data.count,
-        amount: parseFloat(Number(data.amount).toFixed(2))
-      }));
-      
-      const report: ReconciliationReport = {
-        totalOrders,
-        totalPayments,
-        totalAmount: parseFloat(Number(totalAmount).toFixed(2)),
-        dailyData: dailyDataArray,
-        generatedAt: new Date().toISOString()
-      };
-      
-      console.log('✅ 对账报告生成成功:', report);
-      return report;
-    } catch (error) {
-      console.error('❌ 生成对账报告失败:', error);
-      throw error;
-    }
   }
 
   // 获取所有提现记录
   async getAllWithdrawals(): Promise<Withdrawal[]> {
     const connection = await getConnection();
     const [rows] = await connection.execute('SELECT * FROM withdrawals ORDER BY created_at DESC');
-    return rows as Withdrawal[];
+    connection.release();
+    
+    // 转换日期字段
+    const withdrawals = (rows as any[]).map(row => ({
+      ...row,
+      createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+      updatedAt: row.updated_at ? new Date(row.updated_at) : new Date(),
+      requestDate: row.request_date ? new Date(row.request_date) : null
+    }));
+    
+    return withdrawals as Withdrawal[];
   }
 
   // 添加提现记录
   async addWithdrawal(withdrawal: Omit<Withdrawal, 'id' | 'createdAt' | 'updatedAt'>): Promise<Withdrawal> {
     const connection = await getConnection();
-    const id = `withdrawal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const now = new Date();
+    const withdrawalId = `withdrawal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     const newWithdrawal: Withdrawal = {
-      id,
-      ...withdrawal,
-      createdAt: now,
-      updatedAt: now
+      id: withdrawalId,
+      userId: withdrawal.userId,
+      amount: withdrawal.amount,
+      status: withdrawal.status,
+      fee: withdrawal.fee,
+      netAmount: withdrawal.netAmount,
+      bankAccount: withdrawal.bankAccount,
+      requestDate: withdrawal.requestDate,
+      createdAt: new Date(),
+      updatedAt: new Date()
     };
+
+    await connection.execute(
+      'INSERT INTO withdrawals (id, user_id, amount, status, fee, net_amount, bank_account, request_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        newWithdrawal.id,
+        newWithdrawal.userId,
+        newWithdrawal.amount,
+        newWithdrawal.status,
+        newWithdrawal.fee,
+        newWithdrawal.netAmount,
+        newWithdrawal.bankAccount,
+        newWithdrawal.requestDate,
+        newWithdrawal.createdAt,
+        newWithdrawal.updatedAt
+      ]
+    );
     
-    const sql = `
-      INSERT INTO withdrawals (id, user_id, amount, status, bank_account, created_at, updated_at) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `;
-    
-    await connection.execute(sql, [
-      newWithdrawal.id, 
-      newWithdrawal.userId, 
-      newWithdrawal.amount, 
-      newWithdrawal.status,
-      newWithdrawal.bankAccount || null,
-      newWithdrawal.createdAt, 
-      newWithdrawal.updatedAt
-    ]);
-    
+    connection.release();
     return newWithdrawal;
+  }
+
+  // 生成财务报表
+  async generateFinancialReport(): Promise<FinancialReport> {
+    const connection = await getConnection();
+    
+    // 获取所有订单
+    const [orders] = await connection.execute('SELECT * FROM orders');
+    const [users] = await connection.execute('SELECT * FROM users');
+    const [payments] = await connection.execute('SELECT * FROM payments');
+    const [paymentLinks] = await connection.execute('SELECT * FROM payment_links');
+    
+    connection.release();
+    
+    const ordersData = orders as Order[];
+    const usersData = users as User[];
+    const paymentsData = payments as Payment[];
+    const paymentLinksData = paymentLinks as PaymentLink[];
+    
+    // 计算总销售额
+    const totalSales = ordersData
+      .filter(order => order.status === 'completed')
+      .reduce((sum, order) => sum + (Number(order.amount) || 0), 0);
+    
+    const totalOrders = ordersData.length;
+    const platformFee = Number(totalSales) * 0.03; // 3% 平台费
+    const netRevenue = Number(totalSales) - Number(platformFee);
+    const totalUsers = usersData.length;
+    const totalPayments = paymentsData.length;
+    const totalPaymentLinks = paymentLinksData.length;
+    
+    return {
+      totalSales: isNaN(Number(totalSales)) ? 0 : Number(totalSales),
+      totalOrders: totalOrders,
+      platformFee: isNaN(Number(platformFee)) ? 0 : Number(platformFee),
+      netRevenue: isNaN(Number(netRevenue)) ? 0 : Number(netRevenue),
+      totalUsers: totalUsers,
+      totalPayments: totalPayments,
+      totalPaymentLinks: totalPaymentLinks,
+      generatedAt: new Date().toISOString()
+    };
+  }
+
+  // 生成对账报告
+  async generateReconciliationReport(): Promise<ReconciliationReport> {
+    const connection = await getConnection();
+    
+    // 获取所有订单
+    const [orders] = await connection.execute('SELECT * FROM orders');
+    
+    connection.release();
+    
+    const ordersData = orders as Order[];
+    
+    // 按日期分组统计
+    const dailyStats = new Map<string, { totalOrders: number; totalAmount: number; completedOrders: number; completedAmount: number }>();
+    
+    ordersData.forEach(order => {
+      const date = order.createdAt && order.createdAt instanceof Date ? order.createdAt.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+      
+      if (!dailyStats.has(date)) {
+        dailyStats.set(date, { totalOrders: 0, totalAmount: 0, completedOrders: 0, completedAmount: 0 });
+      }
+      
+      const dayStats = dailyStats.get(date)!;
+      dayStats.totalOrders++;
+      dayStats.totalAmount += Number(order.amount) || 0;
+      
+      if (order.status === 'completed') {
+        dayStats.completedOrders++;
+        dayStats.completedAmount += Number(order.amount) || 0;
+      }
+    });
+    
+    const dailyStatsArray = Array.from(dailyStats.entries()).map(([date, stats]) => ({
+      date,
+      totalOrders: stats.totalOrders,
+      totalAmount: stats.totalAmount,
+      completedOrders: stats.completedOrders,
+      completedAmount: stats.completedAmount
+    }));
+    
+    const totalOrders = ordersData.length;
+    const totalAmount = ordersData.reduce((sum, order) => sum + (Number(order.amount) || 0), 0);
+    const completedOrders = ordersData.filter(order => order.status === 'completed').length;
+    const completedAmount = ordersData
+      .filter(order => order.status === 'completed')
+      .reduce((sum, order) => sum + (Number(order.amount) || 0), 0);
+    
+    return {
+      dailyStats: dailyStatsArray,
+      totalOrders: totalOrders,
+      totalAmount: totalAmount,
+      completedOrders: completedOrders,
+      completedAmount: completedAmount,
+      generatedAt: new Date().toISOString()
+    };
   }
 }
 

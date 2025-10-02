@@ -1,0 +1,14 @@
+#!/bin/sh
+# Cursor 6S 开发规范 - Pre-commit Hook
+
+echo "🔍 执行 Cursor 6S 开发规范检查..."
+
+# 运行6S检查脚本
+./scripts/6s-check.sh
+
+if [ $? -ne 0 ]; then
+    echo "❌ 代码不符合 Cursor 6S 开发规范，提交被阻止"
+    exit 1
+fi
+
+echo "✅ 代码检查通过，允许提交"

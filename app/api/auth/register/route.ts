@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { productionDB } from '@/lib/production-database';
+import { mysqlDB } from '@/lib/mysql-database';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,11 +15,11 @@ export async function POST(request: NextRequest) {
     }
 
     // 检查邮箱是否已存在
-    const existingUser = await productionDB.getUserByEmail(email);
+    const existingUser = await mysqlDB.getUserByEmail(email);
     if (existingUser) {
       return NextResponse.json({
         success: false,
-        message: '邮箱已被占用'
+        message: '此電子郵件已被註冊'
       }, { status: 400 });
     }
 
@@ -28,29 +28,24 @@ export async function POST(request: NextRequest) {
       id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       name,
       email,
-      phone: phone || '',
       password, // 注意：生产环境应该加密密码
+      phone: phone || '',
       role,
-      userType: 'admin_created',
+      userType: 'self_registered',
       status: 'active',
       balance: 0,
-      createdAt: new Date()
+      totalEarnings: 0,
+      totalWithdrawals: 0,
+      createdAt: new Date(),
+      updatedAt: new Date()
     };
 
     // 保存用户
-    await productionDB.addUser(newUser);
+    await mysqlDB.addUser(newUser);
 
     return NextResponse.json({
       success: true,
-      message: '用户创建成功',
-      user: {
-        id: newUser.id,
-        name: newUser.name,
-        email: newUser.email,
-        phone: newUser.phone,
-        role: newUser.role,
-        status: newUser.status
-      }
+      message: '註冊成功！歡迎加入京世盈風水！'
     });
   } catch (error) {
     console.error('User registration error:', error);

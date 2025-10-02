@@ -1,4 +1,6 @@
 import * as crypto from 'crypto';
+import { PaymentManager } from './payment/manager';
+import { PaymentRequest } from './payment/types';
 
 export class JkoPayService {
   private config = {
@@ -64,6 +66,8 @@ export class JkoPayService {
 
     // 基本参数 - 严格按照文档要求
     const params: Record<string, string> = {
+      EncryptionMode: 'SHA256',
+      CharacterSet: 'UTF8',
       merNo: this.config.merNo,
       terNo: this.config.terNo,
       orderNo: orderNo,
@@ -73,6 +77,7 @@ export class JkoPayService {
       transType: 'sales',
       transModel: 'M',
       apiType: '1',
+      getPayLink: 'N',
       merremark: description.substring(0, 100),
       returnURL: this.config.returnUrl.replace(/&/g, '|'),
       merMgrURL: this.config.merMgrURL,
@@ -179,54 +184,38 @@ export class JkoPayService {
         merNo,
         orderNo,
         respCode,
+        respMsg,
         terNo,
         tradeNo,
         transType,
         hashcode
       } = callbackData;
 
-      // 根据街口支付文档，回调签名可能不包含 respCode
-      // 尝试两种签名方式
-      const signString1 = [
-        `amount=${amount}`,
-        `currencyCode=${currencyCode}`,
-        `merNo=${merNo}`,
-        `orderNo=${orderNo}`,
-        `terNo=${terNo}`,
-        `tradeNo=${tradeNo}`,
-        `transType=${transType}`,
-        this.config.secretKey
-      ].join('&');
-      
-      const signString2 = [
+      // 根据街口支付API文档，回调签名格式：
+      // hash256(amount=98.99&currencyCode=USD&merNo=1888&orderNo=109116361045&respCode=01&respMsg=Get source URL fails&terNo=88816&tradeNo=BA1512281121473675&transType=sales&密钥)
+      const signString = [
         `amount=${amount}`,
         `currencyCode=${currencyCode}`,
         `merNo=${merNo}`,
         `orderNo=${orderNo}`,
         `respCode=${respCode}`,
+        `respMsg=${respMsg || ''}`,
         `terNo=${terNo}`,
         `tradeNo=${tradeNo}`,
         `transType=${transType}`,
         this.config.secretKey
       ].join('&');
       
-      console.log('🔐 [街口支付回调] 验证签名字符串1(不含respCode):', signString1);
-      console.log('🔐 [街口支付回调] 验证签名字符串2(含respCode):', signString2);
+      console.log('🔐 [街口支付回调] 验证签名字符串:', signString);
       
-      const expectedHash1 = crypto.createHash('sha256')
-        .update(signString1, 'utf8')
+      const expectedHash = crypto.createHash('sha256')
+        .update(signString, 'utf8')
         .digest('hex');
       
-      const expectedHash2 = crypto.createHash('sha256')
-        .update(signString2, 'utf8')
-        .digest('hex');
-      
-      console.log('🔐 [街口支付回调] 期望签名1:', expectedHash1);
-      console.log('🔐 [街口支付回调] 期望签名2:', expectedHash2);
+      console.log('🔐 [街口支付回调] 期望签名:', expectedHash);
       console.log('🔐 [街口支付回调] 接收签名:', hashcode);
       
-      // 尝试两种签名方式
-      return expectedHash1 === hashcode || expectedHash2 === hashcode;
+      return expectedHash === hashcode;
     } catch (error) {
       console.error('❌ [街口支付回调] 签名验证错误:', error);
       return false;

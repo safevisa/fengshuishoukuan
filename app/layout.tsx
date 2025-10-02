@@ -5,9 +5,8 @@ import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.app',
+  title: '京世盈风水 - 管理系统',
+  description: '京世盈风水电商平台管理系统',
 }
 
 export default function RootLayout({

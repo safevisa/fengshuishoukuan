@@ -45,7 +45,7 @@ export default function LoginPage() {
         // 根据用户角色重定向
         if (data.user.role === 'admin') {
           window.location.href = '/admin'
-        } else if (data.user.role === 'dashboard_user') {
+        } else if (data.user.role === 'merchant' || data.user.userType === 'dashboard_user') {
           window.location.href = '/dashboard'
         } else {
           window.location.href = '/'

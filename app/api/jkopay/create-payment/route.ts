@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mysqlDB } from '@/lib/mysql-database';
-import { jkoPayService } from '@/lib/jkopay';
+import { PaymentManager } from '@/lib/payment/manager';
+import { PaymentRequest } from '@/lib/payment/types';
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,39 +27,49 @@ export async function POST(request: NextRequest) {
       }, { status: 404 });
     }
     
-    const amount = paymentLink.amount;
+    const amount = parseFloat(paymentLink.amount);
     const description = paymentLink.description;
     
     // 生成订单号
     const orderNo = `${linkId}_${Date.now()}`;
     
-    // 使用街口支付服务创建支付
-    const paymentResult = await jkoPayService.createPayment({
+    // 使用新的支付管理器创建支付
+    const paymentRequest: PaymentRequest = {
       orderNo,
       amount,
+      currency: 'TWD',
       description,
       customerInfo: {
         name: customerName,
         email: customerEmail,
         phone: customerPhone,
-        ip: '127.0.0.1'
+        ip: '127.0.0.1',
+        address: {
+          country: 'TW',
+          state: 'Taipei',
+          city: 'Taipei',
+          address: '台北市信义区信义路五段7号',
+          zipCode: '110'
+        }
       },
       goodsInfo: [{
         goodsID: linkId,
         goodsName: description,
         quantity: '1',
-        goodsPrice: Math.round(amount).toString()
+        goodsPrice: amount.toString()
       }]
-    });
+    };
+
+    const paymentResult = await PaymentManager.createPayment('jkopay', 'TW', paymentRequest);
     
     console.log('📊 [街口支付] 支付结果:', paymentResult);
     
-    const { respCode, respMsg, skipTo3DURL, tradeNo } = paymentResult;
+    const { respCode, respMsg, paymentUrl, tradeNo } = paymentResult;
     
     // 检查响应状态
     if (respCode === '00' || respCode === '000' || respCode === '0000' || respCode === '003' || respCode === '004') {
       // 支付成功或需要重定向
-      console.log('✅ [街口支付] 支付请求成功，重定向URL:', skipTo3DURL);
+      console.log('✅ [街口支付] 支付请求成功，重定向URL:', paymentUrl);
       
       return NextResponse.json({
         success: true,
@@ -67,7 +78,7 @@ export async function POST(request: NextRequest) {
           orderNo: orderNo,
           respCode: respCode,
           respMsg: respMsg,
-          paymentUrl: skipTo3DURL,
+          paymentUrl: paymentUrl,
           amount: amount,
           currencyCode: 'TWD',
           tradeNo: tradeNo

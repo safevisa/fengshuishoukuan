@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     console.error('Get financial report error:', error);
     return NextResponse.json({
       success: false,
-      message: '获取财务报告失败'
+      message: '獲取財務報告失敗'
     }, { status: 500 });
   }
 }

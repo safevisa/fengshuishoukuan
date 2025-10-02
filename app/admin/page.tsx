@@ -21,6 +21,7 @@ import {
   Search,
   BarChart3,
   Calendar,
+  CheckCircle,
   Link as LinkIcon
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -28,7 +29,6 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { User, Order, Payment, Withdrawal, FinancialReport } from "@/lib/types"
-import { serverAPI } from "@/lib/server-storage"
 import { authService } from "@/lib/auth"
 import Link from "next/link"
 
@@ -51,6 +51,8 @@ export default function AdminDashboard() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [userPaymentDetails, setUserPaymentDetails] = useState<any>(null)
   const [isPaymentDetailsOpen, setIsPaymentDetailsOpen] = useState(false)
+  const [isCreatingUser, setIsCreatingUser] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -73,6 +75,8 @@ export default function AdminDashboard() {
       const withdrawalsData = withdrawalsResponse.ok ? await withdrawalsResponse.json() : { withdrawals: [] }
       const financialData = financialResponse.ok ? await financialResponse.json() : null
       
+      console.log('📊 加载的用户数据:', usersData.users?.length || 0, '个用户');
+      
       setUsers(usersData.users || [])
       setOrders(ordersData.orders || [])
       setPayments(paymentsData.payments || [])
@@ -84,13 +88,18 @@ export default function AdminDashboard() {
   }
 
   const handleCreateUser = async () => {
+    // 防止重复提交
+    if (isCreatingUser) {
+      return;
+    }
+    
     if (!newUser.name || !newUser.email || !newUser.phone || !newUser.password) {
       alert("请填写所有必需字段")
       return
     }
 
+    setIsCreatingUser(true);
     try {
-      // 使用API创建用户
       const response = await fetch('/api/users', {
         method: 'POST',
         headers: {
@@ -104,21 +113,29 @@ export default function AdminDashboard() {
           role: newUser.role
         })
       })
-
+      
+      if (!response.ok) {
+        throw new Error(`HTTP错误！状态码: ${response.status}`);
+      }
+      
       const result = await response.json()
 
       if (result.success) {
-        alert(result.message)
+        // 先关闭对话框和重置表单
         setNewUser({ name: "", email: "", phone: "", password: "", role: "user" })
         setIsCreateUserOpen(false)
         // 刷新用户数据
         await loadData()
+        // 显示成功消息
+        alert(result.message || '用户创建成功！')
       } else {
-        alert(result.message)
+        alert(result.message || '创建用户失败')
       }
     } catch (error) {
-      console.error('Create user error:', error)
-      alert("创建用户失败，请重试")
+      console.error('创建用户错误:', error)
+      alert("创建用户失败：" + (error instanceof Error ? error.message : '网络错误'))
+    } finally {
+      setIsCreatingUser(false);
     }
   }
 
@@ -139,6 +156,122 @@ export default function AdminDashboard() {
       console.error('Error loading payment details:', error)
       alert("获取用户收款详情失败")
     }
+  }
+
+  const handleExportData = async () => {
+    setIsExporting(true)
+    try {
+      // 获取所有数据
+      const [usersRes, ordersRes, paymentsRes, withdrawalsRes] = await Promise.all([
+        fetch('/api/users'),
+        fetch('/api/orders'),
+        fetch('/api/payments'),
+        fetch('/api/withdrawals')
+      ])
+
+      const [usersData, ordersData, paymentsData, withdrawalsData] = await Promise.all([
+        usersRes.json(),
+        ordersRes.json(),
+        paymentsRes.json(),
+        withdrawalsRes.json()
+      ])
+
+      // 创建CSV内容
+      const csvContent = createExportCSV({
+        users: usersData.users || [],
+        orders: ordersData.orders || [],
+        payments: paymentsData.payments || [],
+        withdrawals: withdrawalsData.withdrawals || []
+      })
+
+      // 下载文件
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `管理员数据导出_${new Date().toISOString().split('T')[0]}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      alert('数据导出成功！')
+    } catch (error) {
+      console.error('Export error:', error)
+      alert('数据导出失败，请重试')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const createExportCSV = (data: any) => {
+    let csvContent = ''
+    
+    // 用户数据
+    if (data.users.length > 0) {
+      csvContent += '=== 用户数据 ===\n'
+      const userHeaders = ['ID', '姓名', '邮箱', '电话', '角色', '状态', '余额', '创建时间']
+      csvContent += userHeaders.join(',') + '\n'
+      csvContent += data.users.map((user: any) => [
+        user.id,
+        user.name,
+        user.email,
+        user.phone || '',
+        user.role,
+        user.status,
+        user.balance || 0,
+        user.createdAt
+      ]).map((row: any[]) => row.join(',')).join('\n') + '\n\n'
+    }
+
+    // 订单数据
+    if (data.orders.length > 0) {
+      csvContent += '=== 订单数据 ===\n'
+      const orderHeaders = ['ID', '用户', '金额', '状态', '支付方式', '创建时间', '完成时间']
+      csvContent += orderHeaders.join(',') + '\n'
+      csvContent += data.orders.map((order: any) => [
+        order.id,
+        order.userName || order.userEmail || order.userId,
+        order.amount,
+        order.status,
+        order.paymentMethod || '',
+        order.createdAt,
+        order.completedAt || ''
+      ]).map((row: any[]) => row.join(',')).join('\n') + '\n\n'
+    }
+
+    // 支付数据
+    if (data.payments.length > 0) {
+      csvContent += '=== 支付数据 ===\n'
+      const paymentHeaders = ['ID', '订单ID', '金额', '状态', '支付方式', '交易ID', '创建时间']
+      csvContent += paymentHeaders.join(',') + '\n'
+      csvContent += data.payments.map((payment: any) => [
+        payment.id,
+        payment.orderId || '',
+        payment.amount,
+        payment.status,
+        payment.paymentMethod || '',
+        payment.transactionId || '',
+        payment.createdAt
+      ]).map((row: any[]) => row.join(',')).join('\n') + '\n\n'
+    }
+
+    // 提现数据
+    if (data.withdrawals.length > 0) {
+      csvContent += '=== 提现数据 ===\n'
+      const withdrawalHeaders = ['ID', '用户ID', '金额', '状态', '银行账户', '申请时间']
+      csvContent += withdrawalHeaders.join(',') + '\n'
+      csvContent += data.withdrawals.map((withdrawal: any) => [
+        withdrawal.id,
+        withdrawal.userId,
+        withdrawal.amount,
+        withdrawal.status,
+        withdrawal.bankAccount || '',
+        withdrawal.requestDate
+      ]).map((row: any[]) => row.join(',')).join('\n') + '\n'
+    }
+
+    return csvContent
   }
 
   const filteredUsers = users.filter(user => 
@@ -182,14 +315,28 @@ export default function AdminDashboard() {
     }).format(amount)
   }
 
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(new Date(date))
+  const formatDate = (date: Date | string | null | undefined) => {
+    if (!date) return '未知时间'
+    
+    try {
+      const dateObj = date instanceof Date ? date : new Date(date)
+      
+      // 检查日期是否有效
+      if (isNaN(dateObj.getTime())) {
+        return '无效时间'
+      }
+      
+      return new Intl.DateTimeFormat('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(dateObj)
+    } catch (error) {
+      console.error('日期格式化错误:', error, '原始值:', date)
+      return '时间错误'
+    }
   }
 
   return (
@@ -203,9 +350,15 @@ export default function AdminDashboard() {
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900">管理员后台</h1>
             </div>
             <div className="flex items-center space-x-4">
-              <Button variant="outline" size="sm" className="mobile-button">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mobile-button"
+                onClick={handleExportData}
+                disabled={isExporting}
+              >
                 <Download className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">导出数据</span>
+                <span className="hidden sm:inline">{isExporting ? '导出中...' : '导出数据'}</span>
               </Button>
             </div>
           </div>
@@ -214,7 +367,7 @@ export default function AdminDashboard() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 mobile-content">
         {/* 统计卡片 */}
-        <div className="mobile-stats grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="mobile-stats grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">总用户数</CardTitle>
@@ -252,14 +405,14 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {formatCurrency(orders.reduce((sum, order) => sum + order.totalAmount, 0))}
+                {formatCurrency(orders.reduce((sum, order) => sum + (Number(order.amount) || 0), 0))}
               </div>
               <p className="text-xs text-muted-foreground">
                 今日交易: {formatCurrency(orders.filter(o => {
                   const today = new Date()
                   const orderDate = new Date(o.createdAt)
                   return orderDate.toDateString() === today.toDateString()
-                }).reduce((sum, order) => sum + order.totalAmount, 0))}
+                }).reduce((sum, order) => sum + (Number(order.amount) || 0), 0))}
               </p>
             </CardContent>
           </Card>
@@ -274,7 +427,45 @@ export default function AdminDashboard() {
                 {formatCurrency(financialReport?.platformFee || 0)}
               </div>
               <p className="text-xs text-muted-foreground">
-                净利润: {formatCurrency(financialReport?.netProfit || 0)}
+                净利润: {formatCurrency(financialReport?.netRevenue || 0)}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">收款成功总金额</CardTitle>
+              <CheckCircle className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {formatCurrency(orders.filter(o => o.status === 'completed').reduce((sum, order) => sum + (Number(order.amount) || 0), 0))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                成功订单: {orders.filter(o => o.status === 'completed').length}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">今日收款额</CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {formatCurrency(orders.filter(o => {
+                  const today = new Date()
+                  const orderDate = new Date(o.createdAt)
+                  return orderDate.toDateString() === today.toDateString() && o.status === 'completed'
+                }).reduce((sum, order) => sum + (Number(order.amount) || 0), 0))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                今日成功: {orders.filter(o => {
+                  const today = new Date()
+                  const orderDate = new Date(o.createdAt)
+                  return orderDate.toDateString() === today.toDateString() && o.status === 'completed'
+                }).length}
               </p>
             </CardContent>
           </Card>
@@ -383,17 +574,29 @@ export default function AdminDashboard() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="user">普通用户</SelectItem>
+                                <SelectItem value="merchant">商户</SelectItem>
                                 <SelectItem value="admin">管理员</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
                         </div>
                         <div className="flex justify-end space-x-2">
-                          <Button variant="outline" onClick={() => setIsCreateUserOpen(false)}>
+                          <Button 
+                            type="button"
+                            variant="outline" 
+                            onClick={() => {
+                              console.log('点击了取消按钮');
+                              setIsCreateUserOpen(false);
+                            }}
+                          >
                             取消
                           </Button>
-                          <Button onClick={handleCreateUser}>
-                            创建用户
+                          <Button 
+                            type="button"
+                            onClick={handleCreateUser}
+                            disabled={isCreatingUser}
+                          >
+                            {isCreatingUser ? "创建中..." : "创建用户"}
                           </Button>
                         </div>
                       </DialogContent>
@@ -432,10 +635,10 @@ export default function AdminDashboard() {
                           </TableCell>
                           <TableCell>
                             <Badge variant={user.userType === 'admin_created' ? 'default' : 'outline'} className="mobile-badge">
-                              {user.userType === 'admin_created' ? '管理员创建' : '注册用户'}
+                              {user.userType === 'admin_created' ? '管理员创建' : user.userType === 'dashboard_user' ? '工作台用户' : '注册用户'}
                             </Badge>
                           </TableCell>
-                          <TableCell>{getStatusBadge(user.status)}</TableCell>
+                          <TableCell>{getStatusBadge(user.status || 'active')}</TableCell>
                           <TableCell>{formatCurrency(user.balance || 0)}</TableCell>
                           <TableCell>{formatDate(user.createdAt)}</TableCell>
                           <TableCell>
@@ -517,7 +720,7 @@ export default function AdminDashboard() {
                       <TableRow key={order.id}>
                         <TableCell className="font-medium">{order.id}</TableCell>
                         <TableCell>{order.userId}</TableCell>
-                        <TableCell>{formatCurrency(order.totalAmount)}</TableCell>
+                        <TableCell>{formatCurrency(order.amount)}</TableCell>
                         <TableCell>{getStatusBadge(order.status)}</TableCell>
                         <TableCell>{order.paymentMethod}</TableCell>
                         <TableCell>{formatDate(order.createdAt)}</TableCell>
@@ -564,10 +767,9 @@ export default function AdminDashboard() {
                       <TableRow key={payment.id}>
                         <TableCell className="font-medium">{payment.id}</TableCell>
                         <TableCell>{payment.orderId}</TableCell>
-                        <TableCell>{payment.userId}</TableCell>
-                        <TableCell>{formatCurrency(payment.amount)}</TableCell>
+                        <TableCell>{formatCurrency(parseFloat(payment.amount))}</TableCell>
                         <TableCell>{getStatusBadge(payment.status)}</TableCell>
-                        <TableCell>{payment.method}</TableCell>
+                        <TableCell>{payment.paymentMethod}</TableCell>
                         <TableCell>{formatDate(payment.createdAt)}</TableCell>
                       </TableRow>
                     ))}
@@ -604,8 +806,8 @@ export default function AdminDashboard() {
                         <TableCell className="font-medium">{withdrawal.id}</TableCell>
                         <TableCell>{withdrawal.userId}</TableCell>
                         <TableCell>{formatCurrency(withdrawal.amount)}</TableCell>
-                        <TableCell>{formatCurrency(withdrawal.fee)}</TableCell>
-                        <TableCell>{formatCurrency(withdrawal.netAmount)}</TableCell>
+                        <TableCell>{formatCurrency(withdrawal.fee || 0)}</TableCell>
+                        <TableCell>{formatCurrency(withdrawal.netAmount || withdrawal.amount)}</TableCell>
                         <TableCell>{getStatusBadge(withdrawal.status)}</TableCell>
                         <TableCell>{formatDate(withdrawal.createdAt)}</TableCell>
                         <TableCell>
@@ -641,7 +843,7 @@ export default function AdminDashboard() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div className="space-y-2">
                       <p className="text-sm font-medium text-muted-foreground">总营收</p>
-                      <p className="text-2xl font-bold">{formatCurrency(financialReport.totalRevenue)}</p>
+                      <p className="text-2xl font-bold">{formatCurrency(financialReport.totalSales)}</p>
                     </div>
                     <div className="space-y-2">
                       <p className="text-sm font-medium text-muted-foreground">总订单数</p>
@@ -653,7 +855,7 @@ export default function AdminDashboard() {
                     </div>
                     <div className="space-y-2">
                       <p className="text-sm font-medium text-muted-foreground">净利润</p>
-                      <p className="text-2xl font-bold">{formatCurrency(financialReport.netProfit)}</p>
+                      <p className="text-2xl font-bold">{formatCurrency(financialReport.netRevenue)}</p>
                     </div>
                   </div>
                 )}

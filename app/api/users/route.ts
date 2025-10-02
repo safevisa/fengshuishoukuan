@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { productionDB } from '@/lib/production-database';
+import { mysqlDB } from '@/lib/mysql-database';
 
 // 获取所有用户
 export async function GET(request: NextRequest) {
   try {
-    const users = await productionDB.getAllUsers();
+    const users = await mysqlDB.getAllUsers();
     
     // 移除密码字段
     const safeUsers = users.map(user => ({
@@ -47,30 +47,30 @@ export async function POST(request: NextRequest) {
     }
 
     // 检查邮箱是否已存在
-    const existingUser = await productionDB.getUserByEmail(email);
+    const existingUser = await mysqlDB.getUserByEmail(email);
     if (existingUser) {
       return NextResponse.json({
         success: false,
-        message: '邮箱已被占用'
+        message: '此電子郵件已被註冊'
       }, { status: 400 });
     }
 
-    // 创建新用户
-    const newUser = {
-      id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    // 创建新用户数据（不包含id, createdAt, updatedAt）
+    const userData = {
       name,
       email,
-      phone: phone || '',
       password,
+      phone: phone || '',
       role,
-      userType: 'admin_created',
-      status: 'active',
+      userType: role === 'merchant' ? 'dashboard_user' : 'admin_created',
+      status: 'active' as const,
       balance: 0,
-      createdAt: new Date()
+      totalEarnings: 0,
+      totalWithdrawals: 0
     };
 
     // 保存用户
-    await productionDB.addUser(newUser);
+    const newUser = await mysqlDB.addUser(userData);
 
     return NextResponse.json({
       success: true,

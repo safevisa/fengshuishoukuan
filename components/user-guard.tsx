@@ -10,7 +10,7 @@ interface UserGuardProps {
   requiredRole?: string
 }
 
-export default function UserGuard({ children, requiredRole = "dashboard_user" }: UserGuardProps) {
+export default function UserGuard({ children, requiredRole }: UserGuardProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const router = useRouter()
@@ -26,8 +26,8 @@ export default function UserGuard({ children, requiredRole = "dashboard_user" }:
           const user = JSON.parse(userData)
           console.log('🔍 [UserGuard] 检查用户:', user)
           
-          // 检查用户角色
-          if (user.role === requiredRole || user.role === 'admin') {
+          // 检查用户角色 - 商户和管理员可以访问工作台
+          if (user.role === 'merchant' || user.role === 'admin' || (requiredRole && user.role === requiredRole)) {
             setIsLoggedIn(true)
           } else {
             console.log('❌ [UserGuard] 用户角色不匹配:', user.role, '需要:', requiredRole)

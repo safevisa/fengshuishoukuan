@@ -1,5 +1,5 @@
-import { serverAPI } from './server-storage'
-import { productionDB } from './production-database'
+// 客户端安全的认证服务
+// 数据库操作通过 API 路由进行
 
 interface User {
   id: string
@@ -82,22 +82,25 @@ class SessionManager {
     if (!user) return false
 
     try {
-      // 从服务器验证用户是否存在
-      const serverUser = await serverAPI.getUserById(user.id)
-      if (serverUser) {
-        // 更新本地用户信息
-        this.setCurrentUser({
-          id: serverUser.id,
-          name: serverUser.name,
-          email: serverUser.email,
-          phone: serverUser.phone,
-          role: serverUser.role,
-          userType: serverUser.userType,
-          status: serverUser.status,
-          balance: serverUser.balance,
-          createdAt: serverUser.createdAt
-        })
-        return true
+      // 通过 API 验证用户是否存在
+      const response = await fetch(`/api/users/${user.id}`)
+      if (response.ok) {
+        const dbUser = await response.json()
+        if (dbUser.success && dbUser.data) {
+          // 更新本地用户信息
+          this.setCurrentUser({
+            id: dbUser.data.id,
+            name: dbUser.data.name,
+            email: dbUser.data.email,
+            phone: dbUser.data.phone || '',
+            role: dbUser.data.role,
+            userType: dbUser.data.userType || 'self_registered',
+            status: dbUser.data.status || 'active',
+            balance: dbUser.data.balance || 0,
+            createdAt: new Date(dbUser.data.createdAt)
+          })
+          return true
+        }
       }
     } catch (error) {
       console.error('Session validation error:', error)
@@ -119,37 +122,18 @@ export const authService = {
     password: string
   }): Promise<{ success: boolean; message: string }> => {
     try {
-      // 在生产环境中使用生产数据库
-      if (process.env.NODE_ENV === 'production') {
-        const existingUser = await productionDB.getUserByEmail(userData.email)
-        if (existingUser) {
-          return { success: false, message: '此電子郵件已被註冊' }
-        }
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      })
 
-        const newUser = {
-          id: Date.now().toString(),
-          ...userData,
-          role: 'user' as const,
-          userType: 'registered' as const,
-          status: 'active' as const,
-          balance: 0,
-          createdAt: new Date()
-        }
-
-        await productionDB.addUser(newUser)
-        return { success: true, message: '註冊成功！歡迎加入京世盈風水！' }
-      } else {
-        // 开发环境使用原有逻辑
-        const result = await serverAPI.createUser({
-          ...userData,
-          role: 'user',
-          userType: 'registered',
-          status: 'active',
-          balance: 0
-        })
-        return result
-      }
+      const result = await response.json()
+      return result
     } catch (error) {
+      console.error('Registration error:', error)
       return { success: false, message: '註冊失敗，請重試' }
     }
   },
@@ -157,37 +141,23 @@ export const authService = {
   // Login user
   login: async (email: string, password: string): Promise<{ success: boolean; message: string; user?: Omit<User, 'password'> }> => {
     try {
-      // 在生产环境中使用生产数据库
-      if (process.env.NODE_ENV === 'production') {
-        const user = await productionDB.getUserByEmail(email)
-        
-        if (!user || user.password !== password) {
-          return { success: false, message: '電子郵件或密碼錯誤，請重試' }
-        }
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      })
 
-        if (user.status !== 'active') {
-          return { success: false, message: '帳戶已被暫停，請聯繫管理員' }
-        }
-
-        const { password: _, ...userWithoutPassword } = user
-        sessionManager.setCurrentUser(userWithoutPassword)
-        
-        return { 
-          success: true, 
-          message: '登入成功！歡迎回來！',
-          user: userWithoutPassword
-        }
-      } else {
-        // 开发环境使用原有逻辑
-        const result = await serverAPI.loginUser(email, password)
-        
-        if (result.success && result.user) {
-          sessionManager.setCurrentUser(result.user)
-        }
-
-        return result
+      const result = await response.json()
+      
+      if (result.success && result.user) {
+        sessionManager.setCurrentUser(result.user)
       }
+
+      return result
     } catch (error) {
+      console.error('Login error:', error)
       return { success: false, message: '登入失敗，請重試' }
     }
   },
@@ -211,15 +181,18 @@ export const authService = {
     role: 'admin' | 'user'
   }): Promise<{ success: boolean; message: string }> => {
     try {
-      const result = await serverAPI.createUser({
-        ...userData,
-        userType: 'admin_created',
-        status: 'active',
-        balance: 0
+      const response = await fetch('/api/admin/create-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
       })
 
+      const result = await response.json()
       return result
     } catch (error) {
+      console.error('Create user error:', error)
       return { success: false, message: '創建用戶失敗，請重試' }
     }
   },
@@ -227,7 +200,12 @@ export const authService = {
   // 获取所有用户（管理员功能）
   getAllUsers: async (): Promise<User[]> => {
     try {
-      return await serverAPI.getAllUsers()
+      const response = await fetch('/api/admin/users')
+      if (response.ok) {
+        const result = await response.json()
+        return result.data || []
+      }
+      return []
     } catch (error) {
       console.error('Error fetching users:', error)
       return []

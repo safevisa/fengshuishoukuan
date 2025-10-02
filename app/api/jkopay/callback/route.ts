@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mysqlDB } from '@/lib/mysql-database';
-import { jkoPayService } from '@/lib/jkopay';
+import { PaymentManager } from '@/lib/payment/manager';
+import { PaymentCallback } from '@/lib/payment/types';
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -34,8 +35,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, message: '缺少订单号' }, { status: 400 });
     }
     
+    // 构建回调数据
+    const callback: PaymentCallback = {
+      orderNo,
+      respCode,
+      respMsg,
+      amount,
+      currency: 'TWD',
+      tradeNo,
+      transactionId: tradeNo,
+      status: 'pending',
+      signature: hashcode,
+      metadata: callbackData
+    };
+
     // 验证签名
-    const signatureValid = jkoPayService.verifyCallbackSignature(callbackData);
+    const signatureValid = PaymentManager.verifyCallback('jkopay', 'TW', callback);
     if (!signatureValid) {
       console.log('⚠️ [街口支付回调] 签名验证失败，但继续处理支付数据');
     } else {
@@ -78,17 +93,20 @@ export async function POST(request: NextRequest) {
       // 更新订单状态
       await mysqlDB.updateOrder(order.id, { 
         status: 'completed',
-        transaction_id: tradeNo,
-        completed_at: new Date()
+        transactionId: tradeNo,
+        completedAt: new Date()
       });
       console.log('✅ [街口支付回调] 订单状态已更新为completed');
       
-      // 更新收款链接状态
+      // 更新收款链接状态和使用次数
       await mysqlDB.updatePaymentLink(paymentLink.id, { 
         status: 'completed',
-        transaction_id: tradeNo
+        transactionId: tradeNo
       });
-      console.log('✅ [街口支付回调] 收款链接状态已更新为completed');
+      
+      // 增加使用次数
+      await mysqlDB.incrementPaymentLinkUsage(paymentLink.id);
+      console.log('✅ [街口支付回调] 收款链接状态已更新为completed，使用次数已增加');
       
       // 创建支付记录
       const paymentAmount = amount ? parseFloat(amount) : paymentLink.amount; // 街口支付返回的是元
@@ -97,7 +115,7 @@ export async function POST(request: NextRequest) {
         amount: paymentAmount,
         status: 'completed',
         paymentMethod: 'jkopay',
-        transaction_id: tradeNo || orderNo,
+        transactionId: tradeNo || orderNo,
         currencyCode: currencyCode || 'TWD',
         respCode: respCode,
         respMsg: respMsg
@@ -129,27 +147,31 @@ export async function POST(request: NextRequest) {
       });
       
     } else {
-      // 支付失败
-      console.log('❌ [街口支付回调] 支付失败:', respCode, respMsg);
+      // 支付失败 - 使用更具体的状态值
+      const failureStatus = respMsg === 'Order Timeout' ? 'Order Timeout' : 'Payment Failed';
+      console.log(`❌ [街口支付回调] 支付失败: ${respCode} ${respMsg}`);
       
       // 更新订单状态为失败
       await mysqlDB.updateOrder(order.id, { 
-        status: 'cancelled'
+        status: failureStatus,
+        transactionId: tradeNo,
+        completedAt: new Date()
       });
       
       // 更新收款链接状态为失败
       await mysqlDB.updatePaymentLink(paymentLink.id, { 
-        status: 'failed'
+        status: failureStatus,
+        transactionId: tradeNo
       });
       
       // 创建失败的支付记录
-      const paymentAmount = amount ? parseFloat(amount) / 100 : paymentLink.amount;
+      const paymentAmount = amount ? parseFloat(amount) : paymentLink.amount; // 街口支付返回的是元，不需要除以100
       await mysqlDB.addPayment({
         orderId: order.id,
         amount: paymentAmount,
-        status: 'failed',
+        status: failureStatus,
         paymentMethod: 'jkopay',
-        transaction_id: tradeNo || orderNo,
+        transactionId: tradeNo || orderNo,
         currencyCode: currencyCode || 'TWD',
         respCode: respCode,
         respMsg: respMsg
